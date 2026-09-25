@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 let students={}, classes={}, attendance={}, settings={schoolName:"MTs Miftahul Ulum Pronojiwo",lateAfter:"07:15"};
 let selectedStudent=null, scanner=null, lastScanCode=null;
-let currentRole = "petugas";
+
 const today=()=>new Date().toISOString().slice(0,10);
 const nowTime=()=>new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -17,106 +17,28 @@ function showTab(id){
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 auth.onAuthStateChanged(async user=>{
-  if(user){
-    $("loginView").classList.add("hidden");
-    $("appView").classList.remove("hidden");
-    $("userEmail").textContent=user.email||"";
-
-    try{
-      const roleSnap = await db.ref("roles/"+user.uid).once("value");
-      const roleData = roleSnap.val();
-      currentRole = roleData?.role === "petugas" ? "petugas" : "admin";
-
-      applyRoleUI();
-      await loadAll();
-    }catch(e){
-      console.error(e);
-      $("loginMsg").textContent="Gagal memuat hak akses.";
-    }
-
-  }else{
-    $("loginView").classList.remove("hidden");
-    $("appView").classList.add("hidden");
-    currentRole="petugas";
-  }
+ if(user){$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userEmail").textContent=user.email||"";await loadAll();}
+ else{$("loginView").classList.remove("hidden");$("appView").classList.add("hidden");}
 });
-
-$("loginBtn").onclick=async()=>{
-  try{
-    await auth.signInWithEmailAndPassword(
-      $("loginEmail").value,
-      $("loginPassword").value
-    )
-  }catch(e){
-    $("loginMsg").textContent=e.message
-  }
-};
-
+$("loginBtn").onclick=async()=>{try{await auth.signInWithEmailAndPassword($("loginEmail").value,$("loginPassword").value)}catch(e){$("loginMsg").textContent=e.message}};
 $("logoutBtn").onclick=()=>auth.signOut();
-
-function applyRoleUI(){
-  const adminOnly = [
-    '[data-tab="students"]',
-    '[data-tab="classes"]',
-    '[data-tab="settings"]'
-  ];
-
-  adminOnly.forEach(selector=>{
-    const el=document.querySelector(selector);
-    if(el) el.style.display = currentRole==="admin" ? "" : "none";
-  });
-
-  const dashboardTab=document.querySelector('[data-tab="dashboard"]');
-  const scannerTab=document.querySelector('[data-tab="scanner"]');
-  const attendanceTab=document.querySelector('[data-tab="attendance"]');
-
-  if(dashboardTab) dashboardTab.style.display="";
-  if(scannerTab) scannerTab.style.display="";
-  if(attendanceTab) attendanceTab.style.display="";
-
-  $("userEmail").textContent =
-    `${auth.currentUser?.email||""} • ${currentRole==="admin"?"ADMIN":"PETUGAS"}`;
-}
 
 async function loadAll(){
  const snap=await db.ref().once("value"), d=snap.val()||{};
  students=d.students||{}; classes=d.classes||{}; attendance=d.attendance||{}; settings={...settings,...(d.settings||{})};
- $("schoolName").value=settings.schoolName;
- $("lateAfter").value=settings.lateAfter;
- refreshClassOptions();
- renderDashboard();
+ $("schoolName").value=settings.schoolName;$("lateAfter").value=settings.lateAfter;
+ refreshClassOptions();renderDashboard();
  listenRealtime();
 }
-
 function listenRealtime(){
- db.ref("students").on("value",s=>{
-   students=s.val()||{};
-   refreshClassOptions();
-   renderStudents();
-   renderDashboard()
- });
- db.ref("classes").on("value",s=>{
-   classes=s.val()||{};
-   refreshClassOptions();
-   renderClasses();
-   renderStudents()
- });
- db.ref("attendance").on("value",s=>{
-   attendance=s.val()||{};
-   renderDashboard();
-   renderAttendance()
- });
- db.ref("settings").on("value",s=>{
-   settings={...settings,...(s.val()||{})}
- });
+ db.ref("students").on("value",s=>{students=s.val()||{};refreshClassOptions();renderStudents();renderDashboard()});
+ db.ref("classes").on("value",s=>{classes=s.val()||{};refreshClassOptions();renderClasses();renderStudents()});
+ db.ref("attendance").on("value",s=>{attendance=s.val()||{};renderDashboard();renderAttendance()});
+ db.ref("settings").on("value",s=>{settings={...settings,...(s.val()||{})}});
 }
 
 function refreshClassOptions(){
- const opts=Object.values(classes)
-   .sort((a,b)=>a.name.localeCompare(b.name,"id"))
-   .map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`)
-   .join("");
-
+ const opts=Object.values(classes).sort((a,b)=>a.name.localeCompare(b.name,"id")).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");
  $("studentClass").innerHTML=opts;
  $("studentClassFilter").innerHTML='<option value="">Semua Kelas</option>'+opts;
  $("attendanceClassFilter").innerHTML='<option value="">Semua Kelas</option>'+opts;
@@ -125,140 +47,29 @@ function refreshClassOptions(){
 function renderDashboard(){
  const ids=Object.keys(students), day=attendance[today()]||{};
  let present=0,late=0;
-
- Object.values(day).forEach(a=>{
-   if(a.status==="Hadir")present++;
-   if(a.status==="Terlambat")late++
- });
-
- $("statStudents").textContent=ids.length;
- $("statPresent").textContent=present;
- $("statLate").textContent=late;
+ Object.values(day).forEach(a=>{if(a.status==="Hadir")present++;if(a.status==="Terlambat")late++});
+ $("statStudents").textContent=ids.length;$("statPresent").textContent=present;$("statLate").textContent=late;
  $("statMissing").textContent=Math.max(0,ids.length-present-late);
-
- const rows=Object.values(day)
-   .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0))
-   .slice(0,20);
-
- $("recentList").innerHTML=rows.length?
- `<table>
-   <thead>
-     <tr>
-       <th>Waktu</th>
-       <th>Nama</th>
-       <th>Kelas</th>
-       <th>Status</th>
-     </tr>
-   </thead>
-   <tbody>
-     ${rows.map(a=>`
-       <tr>
-         <td>${esc(a.time)}</td>
-         <td>${esc(a.name)}</td>
-         <td>${esc(a.className)}</td>
-         <td><span class="badge">${esc(a.status)}</span></td>
-       </tr>
-     `).join("")}
-   </tbody>
- </table>`
- :"Belum ada absensi hari ini.";
+ const rows=Object.values(day).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
+ $("recentList").innerHTML=rows.length?`<table><thead><tr><th>Waktu</th><th>Nama</th><th>Kelas</th><th>Status</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${esc(a.time)}</td><td>${esc(a.name)}</td><td>${esc(a.className)}</td><td><span class="badge">${esc(a.status)}</span></td></tr>`).join("")}</tbody></table>`:"Belum ada absensi hari ini.";
 }
 
 function renderStudents(){
  const q=$("studentSearch").value.toLowerCase(), cl=$("studentClassFilter").value;
-
- const arr=Object.values(students)
-   .filter(s=>
-     (!cl||s.className===cl)&&
-     (!q||[s.name,s.nis,s.code,s.phone].join(" ").toLowerCase().includes(q))
-   )
-   .sort((a,b)=>a.name.localeCompare(b.name,"id"));
-
- $("studentsTable").innerHTML=`
- <table>
-   <thead>
-     <tr>
-       <th>Nama</th>
-       <th>NIS</th>
-       <th>Kelas</th>
-       <th>WhatsApp</th>
-       <th>Barcode</th>
-       <th>Aksi</th>
-     </tr>
-   </thead>
-   <tbody>
-     ${arr.map(s=>`
-       <tr>
-         <td>${esc(s.name)}</td>
-         <td>${esc(s.nis)}</td>
-         <td>${esc(s.className)}</td>
-         <td>${esc(s.phone||"-")}</td>
-         <td><code>${esc(s.code)}</code></td>
-         <td>
-           <div class="actions">
-             <button class="secondary" onclick="editStudent('${s.id}')">Edit</button>
-             <button class="secondary" onclick="printCode('${s.id}')">Barcode</button>
-             <button class="secondary" onclick="deleteStudent('${s.id}')">Hapus</button>
-           </div>
-         </td>
-       </tr>
-     `).join("")}
-   </tbody>
- </table>`;
+ const arr=Object.values(students).filter(s=>(!cl||s.className===cl)&&(!q||[s.name,s.nis,s.code,s.phone].join(" ").toLowerCase().includes(q))).sort((a,b)=>a.name.localeCompare(b.name,"id"));
+ $("studentsTable").innerHTML=`<table><thead><tr><th>Nama</th><th>NIS</th><th>Kelas</th><th>WhatsApp</th><th>Barcode</th><th>Aksi</th></tr></thead><tbody>${arr.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.nis)}</td><td>${esc(s.className)}</td><td>${esc(s.phone||"-")}</td><td><code>${esc(s.code)}</code></td><td><div class="actions"><button class="secondary" onclick="editStudent('${s.id}')">Edit</button><button class="secondary" onclick="printCode('${s.id}')">Barcode</button><button class="secondary" onclick="deleteStudent('${s.id}')">Hapus</button></div></td></tr>`).join("")}</tbody></table>`;
 }
-
-$("studentSearch").oninput=renderStudents;
-$("studentClassFilter").onchange=renderStudents;
-
-$("newStudentBtn").onclick=()=>{
- $("studentForm").classList.remove("hidden");
- $("studentId").value="";
- $("studentNis").value="";
- $("studentName").value="";
- $("studentPhone").value="";
- $("studentClass").selectedIndex=0
-};
-
+$("studentSearch").oninput=renderStudents;$("studentClassFilter").onchange=renderStudents;
+$("newStudentBtn").onclick=()=>{ $("studentForm").classList.remove("hidden");$("studentId").value="";$("studentNis").value="";$("studentName").value="";$("studentPhone").value="";$("studentClass").selectedIndex=0 };
 $("cancelStudentBtn").onclick=()=>$("studentForm").classList.add("hidden");
-
 $("saveStudentBtn").onclick=async()=>{
- const id=$("studentId").value||db.ref("students").push().key;
- const old=students[id];
- const code=old?.code||("MTU-"+id.slice(-8).toUpperCase());
-
- const obj={
-   id,
-   nis:$("studentNis").value.trim(),
-   name:$("studentName").value.trim(),
-   className:$("studentClass").value,
-   phone:$("studentPhone").value.trim(),
-   code,
-   updatedAt:Date.now()
- };
-
- if(!obj.name||!obj.className)
-   return toast("Nama dan kelas wajib diisi.");
-
- await db.ref("students/"+id).set(obj);
- $("studentForm").classList.add("hidden");
- toast("Data siswa tersimpan.");
+ const id=$("studentId").value||db.ref("students").push().key, old=students[id], code=old?.code||("MTU-"+id.slice(-8).toUpperCase());
+ const obj={id,nis:$("studentNis").value.trim(),name:$("studentName").value.trim(),className:$("studentClass").value,phone:$("studentPhone").value.trim(),code,updatedAt:Date.now()};
+ if(!obj.name||!obj.className)return toast("Nama dan kelas wajib diisi.");
+ await db.ref("students/"+id).set(obj);$("studentForm").classList.add("hidden");toast("Data siswa tersimpan.");
 };
-
-window.editStudent=id=>{
- const s=students[id];
- $("studentForm").classList.remove("hidden");
- $("studentId").value=id;
- $("studentNis").value=s.nis||"";
- $("studentName").value=s.name||"";
- $("studentPhone").value=s.phone||"";
- $("studentClass").value=s.className
-};
-
-window.deleteStudent=async id=>{
- if(confirm("Hapus siswa?"))
-   await db.ref("students/"+id).remove()
-};
-
+window.editStudent=id=>{const s=students[id];$("studentForm").classList.remove("hidden");$("studentId").value=id;$("studentNis").value=s.nis||"";$("studentName").value=s.name||"";$("studentPhone").value=s.phone||"";$("studentClass").value=s.className};
+window.deleteStudent=async id=>{if(confirm("Hapus siswa?"))await db.ref("students/"+id).remove()};
 window.printCode = id => {
   const s = students[id];
   const w = window.open("", "_blank");
@@ -369,270 +180,53 @@ window.printCode = id => {
 };
 
 function renderClasses(){
- const arr=Object.values(classes)
-   .sort((a,b)=>a.name.localeCompare(b.name,"id"));
-
- $("classesTable").innerHTML=`
- <table>
-   <thead>
-     <tr>
-       <th>Kelas</th>
-       <th>Aksi</th>
-     </tr>
-   </thead>
-   <tbody>
-     ${arr.map(c=>`
-       <tr>
-         <td>${esc(c.name)}</td>
-         <td>
-           <div class="actions">
-             <button class="secondary" onclick="editClass('${c.id}')">Edit</button>
-             <button class="secondary" onclick="deleteClass('${c.id}')">Hapus</button>
-           </div>
-         </td>
-       </tr>
-     `).join("")}
-   </tbody>
- </table>`;
+ const arr=Object.values(classes).sort((a,b)=>a.name.localeCompare(b.name,"id"));
+ $("classesTable").innerHTML=`<table><thead><tr><th>Kelas</th><th>Aksi</th></tr></thead><tbody>${arr.map(c=>`<tr><td>${esc(c.name)}</td><td><div class="actions"><button class="secondary" onclick="editClass('${c.id}')">Edit</button><button class="secondary" onclick="deleteClass('${c.id}')">Hapus</button></div></td></tr>`).join("")}</tbody></table>`;
 }
-
-$("newClassBtn").onclick=()=>{
- $("classForm").classList.remove("hidden");
- $("classId").value="";
- $("className").value=""
-};
-
+$("newClassBtn").onclick=()=>{$("classForm").classList.remove("hidden");$("classId").value="";$("className").value=""};
 $("cancelClassBtn").onclick=()=>$("classForm").classList.add("hidden");
-
-$("saveClassBtn").onclick=async()=>{
- const name=$("className").value.trim();
- if(!name)return;
-
- const id=$("classId").value||db.ref("classes").push().key;
-
- await db.ref("classes/"+id).set({
-   id,
-   name
- });
-
- $("classForm").classList.add("hidden");
- toast("Kelas tersimpan")
-};
-
-window.editClass=id=>{
- $("classForm").classList.remove("hidden");
- $("classId").value=id;
- $("className").value=classes[id].name
-};
-
-window.deleteClass=async id=>{
- if(confirm("Hapus kelas? Data siswa tidak ikut terhapus."))
-   await db.ref("classes/"+id).remove()
-};
+$("saveClassBtn").onclick=async()=>{const name=$("className").value.trim();if(!name)return;const id=$("classId").value||db.ref("classes").push().key;await db.ref("classes/"+id).set({id,name});$("classForm").classList.add("hidden");toast("Kelas tersimpan")};
+window.editClass=id=>{$("classForm").classList.remove("hidden");$("classId").value=id;$("className").value=classes[id].name};
+window.deleteClass=async id=>{if(confirm("Hapus kelas? Data siswa tidak ikut terhapus."))await db.ref("classes/"+id).remove()};
 
 $("startScanBtn").onclick=async()=>{
  if(scanner)return;
-
  scanner=new Html5Qrcode("reader");
-
  try{
-  await scanner.start(
-    {facingMode:"environment"},
-    {fps:10,qrbox:{width:250,height:250}},
-    onScan
-  );
-
+  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:250}},onScan);
   $("scanMsg").textContent="Kamera aktif.";
- }catch(e){
-  $("scanMsg").textContent="Kamera gagal dibuka. Pastikan HTTPS dan izin kamera aktif.";
-  scanner=null
- }
+ }catch(e){$("scanMsg").textContent="Kamera gagal dibuka. Pastikan HTTPS dan izin kamera aktif.";scanner=null}
 };
-
-$("stopScanBtn").onclick=async()=>{
- if(scanner){
-   try{
-     await scanner.stop()
-   }catch{}
-
-   scanner.clear();
-   scanner=null;
-   $("scanMsg").textContent="Kamera dihentikan."
- }
-};
-
+$("stopScanBtn").onclick=async()=>{if(scanner){try{await scanner.stop()}catch{};scanner.clear();scanner=null;$("scanMsg").textContent="Kamera dihentikan."}};
 async function onScan(decoded){
- if(decoded===lastScanCode)return;
-
- lastScanCode=decoded;
- setTimeout(()=>lastScanCode=null,1800);
-
- const s=Object.values(students)
-   .find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
-
- if(!s){
-   $("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`;
-   selectedStudent=null;
-   return
- }
-
- selectedStudent=s;
-
- $("scanResult").innerHTML=`
-   <b>${esc(s.name)}</b><br>
-   NIS: ${esc(s.nis)}<br>
-   Kelas: ${esc(s.className)}<br>
-   Waktu: ${nowTime()}
- `;
-
- const late=settings.lateAfter && nowTime().slice(0,5)>settings.lateAfter;
-
- $("scanStatus").value=late?"Terlambat":"Hadir";
+ if(decoded===lastScanCode)return;lastScanCode=decoded;setTimeout(()=>lastScanCode=null,1800);
+ const s=Object.values(students).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
+ if(!s){$("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`;selectedStudent=null;return}
+ selectedStudent=s;$("scanResult").innerHTML=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis)}<br>Kelas: ${esc(s.className)}<br>Waktu: ${nowTime()}`;
+ const late=settings.lateAfter && nowTime().slice(0,5)>settings.lateAfter;$("scanStatus").value=late?"Terlambat":"Hadir";
 }
-
 $("saveScanBtn").onclick=async()=>{
- if(!selectedStudent)
-   return toast("Scan siswa terlebih dahulu.");
-
+ if(!selectedStudent)return toast("Scan siswa terlebih dahulu.");
  const day=today(), id=selectedStudent.id;
  const existing=attendance[day]?.[id];
-
- if(existing)
-   return toast("Siswa ini sudah absen hari ini.");
-
+ if(existing)return toast("Siswa ini sudah absen hari ini.");
  const status=$("scanStatus").value;
-
- const data={
-   studentId:id,
-   name:selectedStudent.name,
-   nis:selectedStudent.nis,
-   className:selectedStudent.className,
-   status,
-   time:nowTime(),
-   date:day,
-   timestamp:Date.now(),
-   by:auth.currentUser?.email||"petugas"
- };
-
- await db.ref(`attendance/${day}/${id}`).set(data);
-
- toast("Absensi tersimpan.");
- renderDashboard();
+ const data={studentId:id,name:selectedStudent.name,nis:selectedStudent.nis,className:selectedStudent.className,status,time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+ await db.ref(`attendance/${day}/${id}`).set(data);toast("Absensi tersimpan.");renderDashboard();
 };
-
-$("waScanBtn").onclick=()=>{
- if(!selectedStudent?.phone)
-   return toast("Nomor WhatsApp siswa belum diisi.");
-
- const text=
- `ABSENSI ${settings.schoolName}\n`+
- `Nama: ${selectedStudent.name}\n`+
- `Kelas: ${selectedStudent.className}\n`+
- `Status: ${$("scanStatus").value}\n`+
- `Tanggal: ${today()}\n`+
- `Waktu: ${nowTime()}`;
-
- window.open(
-   `https://wa.me/${selectedStudent.phone.replace(/\D/g,"")}?text=${encodeURIComponent(text)}`,
-   "_blank"
- )
-};
+$("waScanBtn").onclick=()=>{if(!selectedStudent?.phone)return toast("Nomor WhatsApp siswa belum diisi.");const text=`ABSENSI ${settings.schoolName}\nNama: ${selectedStudent.name}\nKelas: ${selectedStudent.className}\nStatus: ${$("scanStatus").value}\nTanggal: ${today()}\nWaktu: ${nowTime()}`;window.open(`https://wa.me/${selectedStudent.phone.replace(/\D/g,"")}?text=${encodeURIComponent(text)}`,"_blank")};
 
 function renderAttendance(){
- const d=$("dateFilter").value||today();
- const cl=$("attendanceClassFilter").value;
- const st=$("statusFilter").value;
-
- const arr=Object.values(attendance[d]||{})
-   .filter(a=>
-     (!cl||a.className===cl)&&
-     (!st||a.status===st)
-   )
-   .sort((a,b)=>(a.time||"").localeCompare(b.time||""));
-
- $("attendanceTable").innerHTML=`
- <table>
-   <thead>
-     <tr>
-       <th>Waktu</th>
-       <th>Nama</th>
-       <th>NIS</th>
-       <th>Kelas</th>
-       <th>Status</th>
-       <th>Petugas</th>
-     </tr>
-   </thead>
-   <tbody>
-     ${arr.map(a=>`
-       <tr>
-         <td>${esc(a.time)}</td>
-         <td>${esc(a.name)}</td>
-         <td>${esc(a.nis)}</td>
-         <td>${esc(a.className)}</td>
-         <td>${esc(a.status)}</td>
-         <td>${esc(a.by)}</td>
-       </tr>
-     `).join("")}
-   </tbody>
- </table>`;
+ const d=$("dateFilter").value||today(),cl=$("attendanceClassFilter").value,st=$("statusFilter").value;
+ const arr=Object.values(attendance[d]||{}).filter(a=>(!cl||a.className===cl)&&(!st||a.status===st)).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+ $("attendanceTable").innerHTML=`<table><thead><tr><th>Waktu</th><th>Nama</th><th>NIS</th><th>Kelas</th><th>Status</th><th>Petugas</th></tr></thead><tbody>${arr.map(a=>`<tr><td>${esc(a.time)}</td><td>${esc(a.name)}</td><td>${esc(a.nis)}</td><td>${esc(a.className)}</td><td>${esc(a.status)}</td><td>${esc(a.by)}</td></tr>`).join("")}</tbody></table>`;
 }
-
-$("dateFilter").value=today();
-$("dateFilter").onchange=renderAttendance;
-$("attendanceClassFilter").onchange=renderAttendance;
-$("statusFilter").onchange=renderAttendance;
-
+$("dateFilter").value=today();$("dateFilter").onchange=renderAttendance;$("attendanceClassFilter").onchange=renderAttendance;$("statusFilter").onchange=renderAttendance;
 $("exportBtn").onclick=()=>{
- const d=$("dateFilter").value||today();
- const rows=Object.values(attendance[d]||{});
-
- const head=[
-   "Tanggal",
-   "Waktu",
-   "Nama",
-   "NIS",
-   "Kelas",
-   "Status",
-   "Petugas"
- ];
-
- const csv=[
-   head,
-   ...rows.map(a=>[
-     a.date,
-     a.time,
-     a.name,
-     a.nis,
-     a.className,
-     a.status,
-     a.by
-   ])
- ]
- .map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(","))
- .join("\n");
-
- const blob=new Blob(
-   ["\ufeff"+csv],
-   {type:"text/csv;charset=utf-8"}
- );
-
- const url=URL.createObjectURL(blob);
- const a=document.createElement("a");
-
- a.href=url;
- a.download=`rekap-absensi-${d}.csv`;
- a.click();
-
- URL.revokeObjectURL(url);
+ const d=$("dateFilter").value||today(),rows=Object.values(attendance[d]||{});
+ const head=["Tanggal","Waktu","Nama","NIS","Kelas","Status","Petugas"];
+ const csv=[head,...rows.map(a=>[a.date,a.time,a.name,a.nis,a.className,a.status,a.by])].map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");
+ const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`rekap-absensi-${d}.csv`;a.click();URL.revokeObjectURL(url);
 };
-
-$("saveSettingsBtn").onclick=async()=>{
- settings.schoolName=$("schoolName").value.trim()||settings.schoolName;
- settings.lateAfter=$("lateAfter").value||"07:15";
-
- await db.ref("settings").set(settings);
-
- toast("Pengaturan disimpan")
-};
-
+$("saveSettingsBtn").onclick=async()=>{settings.schoolName=$("schoolName").value.trim()||settings.schoolName;settings.lateAfter=$("lateAfter").value||"07:15";await db.ref("settings").set(settings);toast("Pengaturan disimpan")};
 $("refreshDashboard").onclick=renderDashboard;
