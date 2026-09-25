@@ -3,161 +3,657 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#1f2937">
+
+  <meta name="theme-color" content="#0f172a">
   <meta name="description" content="Aplikasi Absensi Barcode Multi-HP">
+
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
+
   <title>Absensi Barcode - MTs Miftahul Ulum</title>
 </head>
+
 <body>
-  <div id="loginView" class="center-screen">
-    <div class="card login-card">
-      <h1>Absensi Barcode</h1>
-      <p class="muted">MTs Miftahul Ulum Pronojiwo</p>
-      <input id="loginEmail" type="email" placeholder="Email admin/petugas">
-      <input id="loginPassword" type="password" placeholder="Password">
-      <button id="loginBtn" class="primary">Masuk</button>
-      <p id="loginMsg" class="msg"></p>
-      <small>Gunakan akun Firebase Authentication yang sudah dibuat.</small>
+
+<!-- ================= LOGIN ================= -->
+
+<div id="loginView" class="center-screen">
+
+  <div class="login-card">
+
+    <div class="login-brand">
+      <div class="brand-icon">✓</div>
+
+      <div>
+        <h1>Absensi Digital</h1>
+        <p>MTs Miftahul Ulum Pronojiwo</p>
+      </div>
     </div>
+
+    <div class="login-title">
+      <h2>Selamat Datang</h2>
+      <p>Masuk untuk mengelola sistem absensi.</p>
+    </div>
+
+    <div class="input-group">
+      <label>Email</label>
+      <input
+        id="loginEmail"
+        type="email"
+        placeholder="Masukkan email"
+        autocomplete="username">
+    </div>
+
+    <div class="input-group">
+      <label>Password</label>
+      <input
+        id="loginPassword"
+        type="password"
+        placeholder="Masukkan password"
+        autocomplete="current-password">
+    </div>
+
+    <button id="loginBtn" class="primary login-button">
+      Masuk ke Dashboard
+    </button>
+
+    <p id="loginMsg" class="msg"></p>
+
+    <small class="login-footer">
+      Sistem Absensi Digital • MTs Miftahul Ulum Pronojiwo
+    </small>
+
   </div>
 
-  <div id="appView" class="hidden">
-    <header class="topbar">
+</div>
+
+
+<!-- ================= APPLICATION ================= -->
+
+<div id="appView" class="hidden">
+
+  <!-- TOPBAR -->
+
+  <header class="topbar">
+
+    <div class="brand">
+
+      <div class="brand-icon small">✓</div>
+
       <div>
-        <strong>ABSENSI BARCODE</strong>
-        <span class="sub">MTs Miftahul Ulum Pronojiwo</span>
+        <strong>ABSENSI DIGITAL</strong>
+        <span class="sub">
+          MTs Miftahul Ulum Pronojiwo
+        </span>
       </div>
-      <div class="top-actions">
-        <span id="userEmail" class="user-email"></span>
-        <button id="logoutBtn" class="ghost">Keluar</button>
+
+    </div>
+
+    <div class="top-actions">
+
+      <div class="account">
+
+        <span class="account-dot"></span>
+
+        <div>
+          <span class="account-label">Akun aktif</span>
+          <span id="userEmail" class="user-email"></span>
+        </div>
+
       </div>
-    </header>
 
-    <nav class="tabs">
-      <button data-tab="dashboard" class="tab active">Dashboard</button>
-      <button data-tab="scanner" class="tab">Scanner</button>
-      <button data-tab="students" class="tab">Siswa</button>
-      <button data-tab="classes" class="tab">Kelas</button>
-      <button data-tab="attendance" class="tab">Rekap</button>
-      <button data-tab="settings" class="tab">Pengaturan</button>
-    </nav>
+      <button id="logoutBtn" class="logout-button">
+        Keluar
+      </button>
 
-    <main class="container">
-      <section id="dashboard" class="panel active">
-        <div class="page-head"><div><h2>Dashboard</h2><p class="muted">Ringkasan absensi hari ini.</p></div>
-          <button id="refreshDashboard" class="secondary">Refresh</button>
-        </div>
-        <div class="stats">
-          <div class="stat"><span>Total Siswa</span><b id="statStudents">0</b></div>
-          <div class="stat"><span>Hadir</span><b id="statPresent">0</b></div>
-          <div class="stat"><span>Terlambat</span><b id="statLate">0</b></div>
-          <div class="stat"><span>Belum Absen</span><b id="statMissing">0</b></div>
-        </div>
-        <div class="card">
-          <h3>Aktivitas Terbaru</h3>
-          <div id="recentList" class="table-wrap"></div>
-        </div>
-      </section>
+    </div>
 
-      <section id="scanner" class="panel">
-        <div class="page-head"><div><h2>Scanner Barcode / QR</h2><p class="muted">Semua HP yang login memakai database yang sama secara realtime.</p></div></div>
-        <div class="scanner-grid">
-          <div class="card">
-            <div id="reader"></div>
-            <button id="startScanBtn" class="primary">Mulai Kamera</button>
-            <button id="stopScanBtn" class="secondary">Stop Kamera</button>
-            <p id="scanMsg" class="msg"></p>
+  </header>
+
+
+  <!-- NAVIGATION -->
+
+  <nav class="tabs">
+
+    <button data-tab="dashboard" class="tab active">
+      <span class="tab-icon">⌂</span>
+      Dashboard
+    </button>
+
+    <button data-tab="scanner" class="tab">
+      <span class="tab-icon">▣</span>
+      Scanner
+    </button>
+
+    <button data-tab="students" class="tab">
+      <span class="tab-icon">♙</span>
+      Siswa
+    </button>
+
+    <button data-tab="classes" class="tab">
+      <span class="tab-icon">▤</span>
+      Kelas
+    </button>
+
+    <button data-tab="attendance" class="tab">
+      <span class="tab-icon">☷</span>
+      Rekap
+    </button>
+
+    <button data-tab="settings" class="tab">
+      <span class="tab-icon">⚙</span>
+      Pengaturan
+    </button>
+
+  </nav>
+
+
+  <!-- MAIN -->
+
+  <main class="container">
+
+
+    <!-- ================= DASHBOARD ================= -->
+
+    <section id="dashboard" class="panel active">
+
+      <div class="page-head">
+
+        <div>
+          <span class="eyebrow">OVERVIEW</span>
+          <h2>Dashboard</h2>
+          <p class="muted">
+            Ringkasan aktivitas absensi hari ini.
+          </p>
+        </div>
+
+        <button id="refreshDashboard" class="secondary">
+          ↻ Refresh
+        </button>
+
+      </div>
+
+
+      <div class="stats">
+
+        <div class="stat">
+          <div class="stat-top">
+            <span>Total Siswa</span>
+            <div class="stat-icon">♙</div>
           </div>
-          <div class="card">
-            <h3>Hasil Scan</h3>
-            <div id="scanResult" class="result-box">Belum ada scan.</div>
-            <label>Status</label>
+          <b id="statStudents">0</b>
+          <small>Data siswa terdaftar</small>
+        </div>
+
+        <div class="stat">
+          <div class="stat-top">
+            <span>Hadir</span>
+            <div class="stat-icon">✓</div>
+          </div>
+          <b id="statPresent">0</b>
+          <small>Sudah hadir hari ini</small>
+        </div>
+
+        <div class="stat">
+          <div class="stat-top">
+            <span>Terlambat</span>
+            <div class="stat-icon">◷</div>
+          </div>
+          <b id="statLate">0</b>
+          <small>Datang setelah batas waktu</small>
+        </div>
+
+        <div class="stat">
+          <div class="stat-top">
+            <span>Belum Absen</span>
+            <div class="stat-icon">−</div>
+          </div>
+          <b id="statMissing">0</b>
+          <small>Belum tercatat hari ini</small>
+        </div>
+
+      </div>
+
+
+      <div class="card activity-card">
+
+        <div class="card-heading">
+
+          <div>
+            <span class="eyebrow">REALTIME</span>
+            <h3>Aktivitas Terbaru</h3>
+          </div>
+
+          <span class="live-badge">
+            <i></i> LIVE
+          </span>
+
+        </div>
+
+        <div id="recentList" class="table-wrap"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= SCANNER ================= -->
+
+    <section id="scanner" class="panel">
+
+      <div class="page-head">
+
+        <div>
+          <span class="eyebrow">ATTENDANCE</span>
+          <h2>Scanner QR / Barcode</h2>
+
+          <p class="muted">
+            Scan kartu siswa untuk mencatat kehadiran secara realtime.
+          </p>
+        </div>
+
+      </div>
+
+
+      <div class="scanner-grid">
+
+
+        <div class="card scanner-card">
+
+          <div class="scanner-header">
+
+            <div>
+              <span class="eyebrow">CAMERA</span>
+              <h3>Scan Kartu Siswa</h3>
+            </div>
+
+            <span class="camera-status">
+              READY
+            </span>
+
+          </div>
+
+          <div id="reader"></div>
+
+          <div class="scanner-buttons">
+
+            <button id="startScanBtn" class="primary">
+              Mulai Kamera
+            </button>
+
+            <button id="stopScanBtn" class="secondary">
+              Stop Kamera
+            </button>
+
+          </div>
+
+          <p id="scanMsg" class="msg"></p>
+
+        </div>
+
+
+        <div class="card result-card">
+
+          <div class="card-heading">
+
+            <div>
+              <span class="eyebrow">RESULT</span>
+              <h3>Hasil Scan</h3>
+            </div>
+
+          </div>
+
+          <div id="scanResult" class="result-box">
+            Belum ada scan.
+          </div>
+
+          <div class="input-group">
+
+            <label>Status Kehadiran</label>
+
             <select id="scanStatus">
+
               <option value="Hadir">Hadir</option>
               <option value="Terlambat">Terlambat</option>
               <option value="Izin">Izin</option>
               <option value="Sakit">Sakit</option>
               <option value="Alpa">Alpa</option>
+
             </select>
-            <button id="saveScanBtn" class="primary">Simpan Absensi</button>
-            <button id="waScanBtn" class="whatsapp">Kirim WhatsApp</button>
+
+          </div>
+
+          <button id="saveScanBtn" class="primary full-button">
+            Simpan Absensi
+          </button>
+
+          <button id="waScanBtn" class="whatsapp full-button">
+            Kirim WhatsApp
+          </button>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= STUDENTS ================= -->
+
+    <section id="students" class="panel">
+
+      <div class="page-head">
+
+        <div>
+          <span class="eyebrow">MASTER DATA</span>
+          <h2>Data Siswa</h2>
+
+          <p class="muted">
+            Kelola data siswa dan barcode permanen.
+          </p>
+        </div>
+
+        <button id="newStudentBtn" class="primary">
+          + Tambah Siswa
+        </button>
+
+      </div>
+
+
+      <div class="filters">
+
+        <input
+          id="studentSearch"
+          placeholder="Cari nama, NIS, barcode...">
+
+        <select id="studentClassFilter">
+          <option value="">Semua Kelas</option>
+        </select>
+
+      </div>
+
+
+      <div id="studentForm" class="card form-card hidden">
+
+        <div class="card-heading">
+          <div>
+            <span class="eyebrow">FORM DATA</span>
+            <h3>Data Siswa</h3>
           </div>
         </div>
-      </section>
 
-      <section id="students" class="panel">
-        <div class="page-head"><div><h2>Data Siswa</h2><p class="muted">Barcode siswa bersifat permanen meskipun kelas berubah.</p></div>
-          <button id="newStudentBtn" class="primary">+ Tambah Siswa</button>
-        </div>
-        <div class="filters">
-          <input id="studentSearch" placeholder="Cari nama / NIS / barcode...">
-          <select id="studentClassFilter"><option value="">Semua Kelas</option></select>
-        </div>
-        <div id="studentForm" class="card hidden">
-          <h3>Form Siswa</h3>
-          <input id="studentId" type="hidden">
-          <div class="form-grid">
-            <input id="studentNis" placeholder="NIS / NISN">
-            <input id="studentName" placeholder="Nama lengkap">
+        <input id="studentId" type="hidden">
+
+        <div class="form-grid">
+
+          <div class="input-group">
+            <label>NIS / NISN</label>
+            <input id="studentNis" placeholder="Nomor induk">
+          </div>
+
+          <div class="input-group">
+            <label>Nama Lengkap</label>
+            <input id="studentName" placeholder="Nama siswa">
+          </div>
+
+          <div class="input-group">
+            <label>Kelas</label>
             <select id="studentClass"></select>
-            <input id="studentPhone" placeholder="Nomor WhatsApp (628...)">
           </div>
-          <div class="form-actions">
-            <button id="saveStudentBtn" class="primary">Simpan</button>
-            <button id="cancelStudentBtn" class="secondary">Batal</button>
+
+          <div class="input-group">
+            <label>WhatsApp</label>
+            <input id="studentPhone" placeholder="628xxxxxxxxxx">
+          </div>
+
+        </div>
+
+        <div class="form-actions">
+
+          <button id="saveStudentBtn" class="primary">
+            Simpan Data
+          </button>
+
+          <button id="cancelStudentBtn" class="secondary">
+            Batal
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="card table-card">
+
+        <div id="studentsTable" class="table-wrap"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= CLASSES ================= -->
+
+    <section id="classes" class="panel">
+
+      <div class="page-head">
+
+        <div>
+          <span class="eyebrow">MASTER DATA</span>
+          <h2>Data Kelas</h2>
+
+          <p class="muted">
+            Kelola kelas sesuai kebutuhan madrasah.
+          </p>
+        </div>
+
+        <button id="newClassBtn" class="primary">
+          + Tambah Kelas
+        </button>
+
+      </div>
+
+
+      <div id="classForm" class="card form-card hidden">
+
+        <div class="card-heading">
+          <div>
+            <span class="eyebrow">FORM DATA</span>
+            <h3>Tambah Kelas</h3>
           </div>
         </div>
-        <div class="card"><div id="studentsTable" class="table-wrap"></div></div>
-      </section>
 
-      <section id="classes" class="panel">
-        <div class="page-head"><div><h2>Data Kelas</h2><p class="muted">Kelas bebas: VII, VII A, VII B, VIII, VIII A, IX B, dan seterusnya.</p></div>
-          <button id="newClassBtn" class="primary">+ Tambah Kelas</button>
-        </div>
-        <div id="classForm" class="card hidden">
-          <input id="classId" type="hidden">
-          <input id="className" placeholder="Nama kelas, contoh: VIII A">
-          <div class="form-actions"><button id="saveClassBtn" class="primary">Simpan</button><button id="cancelClassBtn" class="secondary">Batal</button></div>
-        </div>
-        <div class="card"><div id="classesTable" class="table-wrap"></div></div>
-      </section>
+        <input id="classId" type="hidden">
 
-      <section id="attendance" class="panel">
-        <div class="page-head"><div><h2>Rekap Absensi</h2><p class="muted">Filter tanggal dan kelas, lalu ekspor CSV untuk Excel.</p></div>
-          <button id="exportBtn" class="primary">Export CSV</button>
-        </div>
-        <div class="filters">
-          <input id="dateFilter" type="date">
-          <select id="attendanceClassFilter"><option value="">Semua Kelas</option></select>
-          <select id="statusFilter"><option value="">Semua Status</option><option>Hadir</option><option>Terlambat</option><option>Izin</option><option>Sakit</option><option>Alpa</option></select>
-        </div>
-        <div class="card"><div id="attendanceTable" class="table-wrap"></div></div>
-      </section>
+        <div class="input-group">
 
-      <section id="settings" class="panel">
-        <div class="page-head"><div><h2>Pengaturan</h2><p class="muted">Konfigurasi jam masuk dan identitas madrasah.</p></div></div>
-        <div class="card form-grid">
-          <input id="schoolName" placeholder="Nama sekolah/madrasah">
-          <input id="lateAfter" type="time" value="07:15">
-          <button id="saveSettingsBtn" class="primary">Simpan Pengaturan</button>
-        </div>
-        <div class="card">
-          <h3>WhatsApp</h3>
-          <p>Mode bawaan memakai tombol WhatsApp untuk membuka chat ke nomor siswa/orang tua. Untuk pengiriman otomatis tanpa klik, sambungkan backend ke WhatsApp Business Cloud API (lihat README).</p>
-        </div>
-      </section>
-    </main>
-  </div>
+          <label>Nama Kelas</label>
 
-  <div id="toast" class="toast"></div>
+          <input
+            id="className"
+            placeholder="Contoh: VIII A">
 
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="firebase-config.js"></script>
-  <script src="app.js"></script>
+        </div>
+
+        <div class="form-actions">
+
+          <button id="saveClassBtn" class="primary">
+            Simpan Kelas
+          </button>
+
+          <button id="cancelClassBtn" class="secondary">
+            Batal
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="card table-card">
+
+        <div id="classesTable" class="table-wrap"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= ATTENDANCE ================= -->
+
+    <section id="attendance" class="panel">
+
+      <div class="page-head">
+
+        <div>
+          <span class="eyebrow">REPORT</span>
+          <h2>Rekap Absensi</h2>
+
+          <p class="muted">
+            Lihat dan ekspor data kehadiran.
+          </p>
+        </div>
+
+        <button id="exportBtn" class="primary">
+          ↓ Export CSV
+        </button>
+
+      </div>
+
+
+      <div class="filters">
+
+        <input id="dateFilter" type="date">
+
+        <select id="attendanceClassFilter">
+          <option value="">Semua Kelas</option>
+        </select>
+
+        <select id="statusFilter">
+          <option value="">Semua Status</option>
+          <option>Hadir</option>
+          <option>Terlambat</option>
+          <option>Izin</option>
+          <option>Sakit</option>
+          <option>Alpa</option>
+        </select>
+
+      </div>
+
+
+      <div class="card table-card">
+
+        <div id="attendanceTable" class="table-wrap"></div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ================= SETTINGS ================= -->
+
+    <section id="settings" class="panel">
+
+      <div class="page-head">
+
+        <div>
+          <span class="eyebrow">SYSTEM</span>
+          <h2>Pengaturan</h2>
+
+          <p class="muted">
+            Konfigurasi identitas dan jam masuk.
+          </p>
+        </div>
+
+      </div>
+
+
+      <div class="card form-card">
+
+        <div class="card-heading">
+
+          <div>
+            <span class="eyebrow">GENERAL</span>
+            <h3>Konfigurasi Madrasah</h3>
+          </div>
+
+        </div>
+
+        <div class="form-grid">
+
+          <div class="input-group">
+
+            <label>Nama Sekolah / Madrasah</label>
+
+            <input
+              id="schoolName"
+              placeholder="Nama sekolah/madrasah">
+
+          </div>
+
+          <div class="input-group">
+
+            <label>Batas Waktu Kehadiran</label>
+
+            <input
+              id="lateAfter"
+              type="time"
+              value="07:15">
+
+          </div>
+
+        </div>
+
+        <div class="form-actions">
+
+          <button id="saveSettingsBtn" class="primary">
+            Simpan Pengaturan
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="card info-card">
+
+        <span class="eyebrow">WHATSAPP</span>
+
+        <h3>Integrasi WhatsApp</h3>
+
+        <p>
+          Mode bawaan membuka chat WhatsApp dengan pesan absensi
+          yang sudah disiapkan. Pengiriman otomatis tanpa klik
+          membutuhkan backend dan WhatsApp Business Cloud API.
+        </p>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+
+
+<!-- TOAST -->
+
+<div id="toast" class="toast"></div>
+
+
+<!-- FIREBASE -->
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script src="firebase-config.js"></script>
+
+<script src="app.js"></script>
+
 </body>
 </html>
