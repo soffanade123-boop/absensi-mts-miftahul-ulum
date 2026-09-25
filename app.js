@@ -1,900 +1,298 @@
-// app.js
-import { db, auth } from "./firebase-config.js";
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+const $=id=>document.getElementById(id);
+let students={}, classes={}, attendance={}, settings={schoolName:"MTs Miftahul Ulum Pronojiwo",lateAfter:"07:15"};
+let selectedStudent=null, scanner=null, lastScanCode=null;
+let currentRole = "petugas";
+const today=()=>new Date().toISOString().slice(0,10);
+const nowTime=()=>new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const toast=m=>{const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)};
+const key=s=>String(s).replace(/[.#$/[\]]/g,"_");
 
-let currentUser = null;
-let currentRole = "admin";
-let scanner = null;
-let scanRunning = false;
+function showTab(id){
+ document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
+ document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+ $(id).classList.add("active");document.querySelector(`[data-tab="${id}"]`).classList.add("active");
+ if(id==="dashboard") renderDashboard(); if(id==="students") renderStudents(); if(id==="classes") renderClasses(); if(id==="attendance") renderAttendance();
+}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
-const $ = (id) => document.getElementById(id);
+auth.onAuthStateChanged(async user=>{
+  if(user){
+    $("loginView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+    $("userEmail").textContent=user.email||"";
 
-const isAdmin = () => currentRole === "admin";
+    try{
+      const roleSnap = await db.ref("roles/"+user.uid).once("value");
+      const roleData = roleSnap.val();
+      currentRole = roleData?.role === "petugas" ? "petugas" : "admin";
 
-/* =========================
-   AUTH
-========================= */
+      applyRoleUI();
+      await loadAll();
+    }catch(e){
+      console.error(e);
+      $("loginMsg").textContent="Gagal memuat hak akses.";
+    }
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    currentUser = null;
-    currentRole = "admin";
-    showLogin();
-    return;
+  }else{
+    $("loginView").classList.remove("hidden");
+    $("appView").classList.add("hidden");
+    currentRole="petugas";
   }
-
-  currentUser = user;
-
-  try {
-    const roleSnap = await db.ref("roles/" + user.uid).once("value");
-    const roleData = roleSnap.val();
-
-    // FIX:
-    // Hanya UID yang benar-benar mempunyai role "petugas"
-    // yang dianggap sebagai petugas.
-    currentRole =
-      roleData?.role === "petugas"
-        ? "petugas"
-        : "admin";
-
-  } catch (error) {
-    console.error("Gagal membaca role:", error);
-
-    // Jika gagal membaca role, jangan menganggap petugas
-    currentRole = "admin";
-  }
-
-  showApp();
-  applyRoleUI();
-  loadDashboard();
 });
+$("loginBtn").onclick=async()=>{try{await auth.signInWithEmailAndPassword($("loginEmail").value,$("loginPassword").value)}catch(e){$("loginMsg").textContent=e.message}};
+$("logoutBtn").onclick=()=>auth.signOut();
 
-/* =========================
-   LOGIN / LOGOUT
-========================= */
-
-function showLogin() {
-  const loginPage = $("loginPage");
-  const appPage = $("appPage");
-
-  if (loginPage) loginPage.style.display = "";
-  if (appPage) appPage.style.display = "none";
-}
-
-function showApp() {
-  const loginPage = $("loginPage");
-  const appPage = $("appPage");
-
-  if (loginPage) loginPage.style.display = "none";
-  if (appPage) appPage.style.display = "";
-}
-
-const loginForm = $("loginForm");
-
-if (loginForm) {
-  loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const email = $("loginEmail")?.value.trim();
-    const password = $("loginPassword")?.value;
-
-    if (!email || !password) {
-      alert("Email dan password wajib diisi.");
-      return;
-    }
-
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      console.error(error);
-      alert("Login gagal: " + error.message);
-    }
-  });
-}
-
-const logoutBtn = $("logoutBtn");
-
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", async () => {
-    await signOut(auth);
-  });
-}
-
-/* =========================
-   ROLE UI
-========================= */
-
-function applyRoleUI() {
+function applyRoleUI(){
   const adminOnly = [
     '[data-tab="students"]',
     '[data-tab="classes"]',
     '[data-tab="settings"]'
   ];
 
-  adminOnly.forEach((selector) => {
-    document.querySelectorAll(selector).forEach((el) => {
-      el.style.display = isAdmin() ? "" : "none";
-    });
+  adminOnly.forEach(selector=>{
+    const el=document.querySelector(selector);
+    if(el) el.style.display = currentRole==="admin" ? "" : "none";
   });
 
-  // Tampilkan informasi role
-  const roleLabel = $("userRole");
+  const dashboardTab=document.querySelector('[data-tab="dashboard"]');
+  const scannerTab=document.querySelector('[data-tab="scanner"]');
+  const attendanceTab=document.querySelector('[data-tab="attendance"]');
 
-  if (roleLabel && currentUser) {
-    roleLabel.textContent =
-      currentRole === "admin"
-        ? "ADMIN"
-        : "PETUGAS";
-  }
+  if(dashboardTab) dashboardTab.style.display="";
+  if(scannerTab) scannerTab.style.display="";
+  if(attendanceTab) attendanceTab.style.display="";
 
-  const emailLabel = $("userEmail");
-
-  if (emailLabel && currentUser) {
-    emailLabel.textContent = currentUser.email || "";
-  }
+  $("userEmail").textContent =
+    `${auth.currentUser?.email||""} • ${currentRole==="admin"?"ADMIN":"PETUGAS"}`;
 }
 
-/* =========================
-   TAB NAVIGATION
-========================= */
-
-document.querySelectorAll("[data-tab]").forEach((button) => {
-  button.addEventListener("click", () => {
-    const tab = button.dataset.tab;
-
-    // Petugas tidak boleh membuka halaman admin
-    if (
-      currentRole === "petugas" &&
-      ["students", "classes", "settings"].includes(tab)
-    ) {
-      alert("Menu ini hanya dapat diakses oleh Admin.");
-      return;
-    }
-
-    showTab(tab);
-  });
-});
-
-function showTab(tabName) {
-  if (
-    currentRole === "petugas" &&
-    ["students", "classes", "settings"].includes(tabName)
-  ) {
-    tabName = "dashboard";
-  }
-
-  document.querySelectorAll(".tab-page").forEach((page) => {
-    page.style.display = "none";
-  });
-
-  const target = document.querySelector(
-    `[data-page="${tabName}"]`
-  );
-
-  if (target) {
-    target.style.display = "";
-  }
-
-  document.querySelectorAll("[data-tab]").forEach((btn) => {
-    btn.classList.toggle(
-      "active",
-      btn.dataset.tab === tabName
-    );
-  });
-
-  if (tabName === "dashboard") loadDashboard();
-  if (tabName === "students") renderStudents();
-  if (tabName === "classes") renderClasses();
-  if (tabName === "attendance") renderAttendance();
+async function loadAll(){
+ const snap=await db.ref().once("value"), d=snap.val()||{};
+ students=d.students||{}; classes=d.classes||{}; attendance=d.attendance||{}; settings={...settings,...(d.settings||{})};
+ $("schoolName").value=settings.schoolName;$("lateAfter").value=settings.lateAfter;
+ refreshClassOptions();renderDashboard();
+ listenRealtime();
 }
 
-/* =========================
-   DASHBOARD
-========================= */
-
-async function loadDashboard() {
-  try {
-    const snap = await db.ref("students").once("value");
-    const data = snap.val() || {};
-
-    const total = Object.keys(data).length;
-
-    const totalEl = $("totalStudents");
-
-    if (totalEl) {
-      totalEl.textContent = total;
-    }
-
-    const today = new Date();
-    const dateKey = formatDate(today);
-
-    const attSnap = await db
-      .ref("attendance/" + dateKey)
-      .once("value");
-
-    const attendance = attSnap.val() || {};
-
-    let hadir = 0;
-    let terlambat = 0;
-    let izin = 0;
-    let sakit = 0;
-    let alpa = 0;
-
-    Object.values(attendance).forEach((item) => {
-      switch (item.status) {
-        case "Hadir":
-          hadir++;
-          break;
-        case "Terlambat":
-          terlambat++;
-          break;
-        case "Izin":
-          izin++;
-          break;
-        case "Sakit":
-          sakit++;
-          break;
-        case "Alpa":
-          alpa++;
-          break;
-      }
-    });
-
-    setText("hadirToday", hadir);
-    setText("terlambatToday", terlambat);
-    setText("izinToday", izin);
-    setText("sakitToday", sakit);
-    setText("alpaToday", alpa);
-
-  } catch (error) {
-    console.error("Dashboard error:", error);
-  }
+function listenRealtime(){
+ db.ref("students").on("value",s=>{students=s.val()||{};refreshClassOptions();renderStudents();renderDashboard()});
+ db.ref("classes").on("value",s=>{classes=s.val()||{};refreshClassOptions();renderClasses();renderStudents()});
+ db.ref("attendance").on("value",s=>{attendance=s.val()||{};renderDashboard();renderAttendance()});
+ db.ref("settings").on("value",s=>{settings={...settings,...(s.val()||{})}});
 }
 
-function setText(id, value) {
-  const el = $(id);
-  if (el) el.textContent = value;
+function refreshClassOptions(){
+ const opts=Object.values(classes).sort((a,b)=>a.name.localeCompare(b.name,"id")).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");
+ $("studentClass").innerHTML=opts;
+ $("studentClassFilter").innerHTML='<option value="">Semua Kelas</option>'+opts;
+ $("attendanceClassFilter").innerHTML='<option value="">Semua Kelas</option>'+opts;
 }
 
-/* =========================
-   STUDENTS
-========================= */
-
-let studentsCache = {};
-
-async function renderStudents() {
-  if (!isAdmin()) return;
-
-  try {
-    const snap = await db.ref("students").once("value");
-    studentsCache = snap.val() || {};
-
-    const tbody = $("studentsTableBody");
-
-    if (!tbody) return;
-
-    tbody.innerHTML = "";
-
-    Object.entries(studentsCache).forEach(([id, student]) => {
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-        <td>${escapeHtml(student.id || id)}</td>
-        <td>${escapeHtml(student.name || "")}</td>
-        <td>${escapeHtml(student.className || "")}</td>
-        <td>${escapeHtml(student.code || "")}</td>
-        <td>
-          <button data-edit="${id}">Edit</button>
-          <button data-delete="${id}">Hapus</button>
-          <button data-qr="${id}">QR</button>
-        </td>
-      `;
-
-      tbody.appendChild(tr);
-    });
-
-    tbody.querySelectorAll("[data-edit]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        editStudent(btn.dataset.edit);
-      });
-    });
-
-    tbody.querySelectorAll("[data-delete]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        deleteStudent(btn.dataset.delete);
-      });
-    });
-
-    tbody.querySelectorAll("[data-qr]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        printStudentQR(btn.dataset.qr);
-      });
-    });
-
-  } catch (error) {
-    console.error(error);
-  }
+function renderDashboard(){
+ const ids=Object.keys(students), day=attendance[today()]||{};
+ let present=0,late=0;
+ Object.values(day).forEach(a=>{if(a.status==="Hadir")present++;if(a.status==="Terlambat")late++});
+ $("statStudents").textContent=ids.length;$("statPresent").textContent=present;$("statLate").textContent=late;
+ $("statMissing").textContent=Math.max(0,ids.length-present-late);
+ const rows=Object.values(day).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
+ $("recentList").innerHTML=rows.length?`<table><thead><tr><th>Waktu</th><th>Nama</th><th>Kelas</th><th>Status</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${esc(a.time)}</td><td>${esc(a.name)}</td><td>${esc(a.className)}</td><td><span class="badge">${esc(a.status)}</span></td></tr>`).join("")}</tbody></table>`:"Belum ada absensi hari ini.";
 }
 
-async function saveStudent(studentId, studentData) {
-  if (!isAdmin()) {
-    alert("Hanya Admin yang dapat mengelola siswa.");
-    return;
-  }
-
-  await db.ref("students/" + studentId).set(studentData);
-
-  await renderStudents();
-  await loadDashboard();
+function renderStudents(){
+ const q=$("studentSearch").value.toLowerCase(), cl=$("studentClassFilter").value;
+ const arr=Object.values(students).filter(s=>(!cl||s.className===cl)&&(!q||[s.name,s.nis,s.code,s.phone].join(" ").toLowerCase().includes(q))).sort((a,b)=>a.name.localeCompare(b.name,"id"));
+ $("studentsTable").innerHTML=`<table><thead><tr><th>Nama</th><th>NIS</th><th>Kelas</th><th>WhatsApp</th><th>Barcode</th><th>Aksi</th></tr></thead><tbody>${arr.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.nis)}</td><td>${esc(s.className)}</td><td>${esc(s.phone||"-")}</td><td><code>${esc(s.code)}</code></td><td><div class="actions"><button class="secondary" onclick="editStudent('${s.id}')">Edit</button><button class="secondary" onclick="printCode('${s.id}')">Barcode</button><button class="secondary" onclick="deleteStudent('${s.id}')">Hapus</button></div></td></tr>`).join("")}</tbody></table>`;
 }
 
-async function deleteStudent(id) {
-  if (!isAdmin()) return;
+$("studentSearch").oninput=renderStudents;$("studentClassFilter").onchange=renderStudents;
 
-  const student = studentsCache[id];
+$("newStudentBtn").onclick=()=>{
+ $("studentForm").classList.remove("hidden");
+ $("studentId").value="";$("studentNis").value="";$("studentName").value="";
+ $("studentPhone").value="";$("studentClass").selectedIndex=0
+};
 
-  if (!student) return;
+$("cancelStudentBtn").onclick=()=>$("studentForm").classList.add("hidden");
 
-  if (!confirm(
-    `Hapus siswa "${student.name}"?`
-  )) {
-    return;
-  }
+$("saveStudentBtn").onclick=async()=>{
+ const id=$("studentId").value||db.ref("students").push().key, old=students[id], code=old?.code||("MTU-"+id.slice(-8).toUpperCase());
+ const obj={id,nis:$("studentNis").value.trim(),name:$("studentName").value.trim(),className:$("studentClass").value,phone:$("studentPhone").value.trim(),code,updatedAt:Date.now()};
+ if(!obj.name||!obj.className)return toast("Nama dan kelas wajib diisi.");
+ await db.ref("students/"+id).set(obj);$("studentForm").classList.add("hidden");toast("Data siswa tersimpan.");
+};
 
-  await db.ref("students/" + id).remove();
+window.editStudent=id=>{
+ const s=students[id];
+ $("studentForm").classList.remove("hidden");
+ $("studentId").value=id;$("studentNis").value=s.nis||"";
+ $("studentName").value=s.name||"";$("studentPhone").value=s.phone||"";
+ $("studentClass").value=s.className
+};
 
-  await renderStudents();
-  await loadDashboard();
-}
+window.deleteStudent=async id=>{if(confirm("Hapus siswa?"))await db.ref("students/"+id).remove()};
 
-function editStudent(id) {
-  if (!isAdmin()) return;
+window.printCode = id => {
+  const s = students[id];
+  const w = window.open("", "_blank");
 
-  const student = studentsCache[id];
+  const school = JSON.stringify(settings.schoolName);
+  const name = JSON.stringify(s.name);
+  const nis = JSON.stringify(s.nis);
+  const cls = JSON.stringify(s.className);
+  const code = JSON.stringify(s.code);
 
-  if (!student) return;
-
-  setValue("studentId", student.id || id);
-  setValue("studentName", student.name || "");
-  setValue("studentClass", student.className || "");
-  setValue("studentCode", student.code || "");
-
-  showTab("students");
-}
-
-/* =========================
-   CLASSES
-========================= */
-
-let classesCache = {};
-
-async function renderClasses() {
-  if (!isAdmin()) return;
-
-  try {
-    const snap = await db.ref("classes").once("value");
-    classesCache = snap.val() || {};
-
-    const tbody = $("classesTableBody");
-
-    if (!tbody) return;
-
-    tbody.innerHTML = "";
-
-    Object.entries(classesCache).forEach(([id, item]) => {
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-        <td>${escapeHtml(item.id || id)}</td>
-        <td>${escapeHtml(item.name || "")}</td>
-        <td>
-          <button data-delete-class="${id}">
-            Hapus
-          </button>
-        </td>
-      `;
-
-      tbody.appendChild(tr);
-    });
-
-    tbody
-      .querySelectorAll("[data-delete-class]")
-      .forEach((btn) => {
-        btn.addEventListener("click", () => {
-          deleteClass(btn.dataset.deleteClass);
-        });
-      });
-
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-async function saveClass(id, name) {
-  if (!isAdmin()) {
-    alert("Hanya Admin yang dapat mengelola kelas.");
-    return;
-  }
-
-  await db.ref("classes/" + id).set({
-    id,
-    name
-  });
-
-  renderClasses();
-}
-
-async function deleteClass(id) {
-  if (!isAdmin()) return;
-
-  if (!confirm("Hapus kelas ini?")) {
-    return;
-  }
-
-  await db.ref("classes/" + id).remove();
-
-  renderClasses();
-}
-
-/* =========================
-   QR CODE
-========================= */
-
-function printStudentQR(id) {
-  if (!isAdmin()) {
-    alert("Hanya Admin yang dapat mencetak QR.");
-    return;
-  }
-
-  const student = studentsCache[id];
-
-  if (!student) return;
-
-  const qr = document.createElement("div");
-
-  new QRCode(qr, {
-    text: student.code,
-    width: 300,
-    height: 300
-  });
-
-  const win = window.open("", "_blank");
-
-  win.document.write(`
+  w.document.write(`
+    <!doctype html>
     <html>
-      <head>
-        <title>QR ${escapeHtml(student.name)}</title>
-      </head>
-      <body style="text-align:center;font-family:Arial">
-        <h2>${escapeHtml(student.name)}</h2>
-        <p>${escapeHtml(student.className)}</p>
-        ${qr.innerHTML}
-        <p>${escapeHtml(student.code)}</p>
-        <script>
-          window.print();
-        <\/script>
-      </body>
+    <head>
+      <title>Kartu Siswa</title>
+      <style>
+        body {font-family:Arial;text-align:center;padding:30px}
+        .card {width:320px;margin:auto;border:1px solid #ddd;border-radius:16px;padding:22px}
+        #qr {display:flex;justify-content:center;margin:18px}
+        .code {font-size:16px;font-weight:bold;letter-spacing:2px}
+        button {padding:10px 18px;border:0;border-radius:8px;background:#111827;color:white}
+        @media print {button{display:none}}
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h2 id="school"></h2>
+        <h3 id="name"></h3>
+        <p id="info"></p>
+        <div id="qr"></div>
+        <div id="code" class="code"></div>
+        <p>Scan QR ini untuk absensi.</p>
+        <button onclick="window.print()">Cetak</button>
+      </div>
+
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+      <script>
+        document.getElementById("school").textContent = ${school};
+        document.getElementById("name").textContent = ${name};
+        document.getElementById("info").textContent =
+          "NIS: " + ${nis} + " | Kelas: " + ${cls};
+        document.getElementById("code").textContent = ${code};
+        new QRCode(document.getElementById("qr"),{text:${code},width:190,height:190});
+      <\/script>
+    </body>
     </html>
   `);
 
-  win.document.close();
+  w.document.close();
+};
+
+function renderClasses(){
+ const arr=Object.values(classes).sort((a,b)=>a.name.localeCompare(b.name,"id"));
+ $("classesTable").innerHTML=`<table><thead><tr><th>Kelas</th><th>Aksi</th></tr></thead><tbody>${arr.map(c=>`<tr><td>${esc(c.name)}</td><td><div class="actions"><button class="secondary" onclick="editClass('${c.id}')">Edit</button><button class="secondary" onclick="deleteClass('${c.id}')">Hapus</button></div></td></tr>`).join("")}</tbody></table>`;
 }
 
-/* =========================
-   SCANNER
-========================= */
+$("newClassBtn").onclick=()=>{
+ $("classForm").classList.remove("hidden");$("classId").value="";$("className").value=""
+};
 
-async function startScanner() {
-  if (scanRunning) return;
+$("cancelClassBtn").onclick=()=>$("classForm").classList.add("hidden");
 
-  const container = $("reader");
+$("saveClassBtn").onclick=async()=>{
+ const name=$("className").value.trim();if(!name)return;
+ const id=$("classId").value||db.ref("classes").push().key;
+ await db.ref("classes/"+id).set({id,name});
+ $("classForm").classList.add("hidden");toast("Kelas tersimpan")
+};
 
-  if (!container) {
-    alert("Area scanner tidak ditemukan.");
-    return;
-  }
+window.editClass=id=>{
+ $("classForm").classList.remove("hidden");$("classId").value=id;$("className").value=classes[id].name
+};
 
-  try {
-    scanner = new Html5Qrcode("reader");
+window.deleteClass=async id=>{
+ if(confirm("Hapus kelas? Data siswa tidak ikut terhapus."))await db.ref("classes/"+id).remove()
+};
 
-    await scanner.start(
-      {
-        facingMode: "environment"
-      },
-      {
-        fps: 10,
-        qrbox: 250
-      },
-      async (decodedText) => {
-        await handleScan(decodedText);
-      },
-      () => {}
-    );
+$("startScanBtn").onclick=async()=>{
+ if(scanner)return;
+ scanner=new Html5Qrcode("reader");
+ try{
+  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:250}},onScan);
+  $("scanMsg").textContent="Kamera aktif.";
+ }catch(e){
+  $("scanMsg").textContent="Kamera gagal dibuka. Pastikan HTTPS dan izin kamera aktif.";
+  scanner=null
+ }
+};
 
-    scanRunning = true;
+$("stopScanBtn").onclick=async()=>{
+ if(scanner){
+  try{await scanner.stop()}catch{};
+  scanner.clear();scanner=null;$("scanMsg").textContent="Kamera dihentikan."
+ }
+};
 
-  } catch (error) {
-    console.error(error);
-    alert("Kamera tidak dapat dibuka.");
-  }
+async function onScan(decoded){
+ if(decoded===lastScanCode)return;
+ lastScanCode=decoded;setTimeout(()=>lastScanCode=null,1800);
+ const s=Object.values(students).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
+ if(!s){
+  $("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`;
+  selectedStudent=null;return
+ }
+ selectedStudent=s;
+ $("scanResult").innerHTML=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis)}<br>Kelas: ${esc(s.className)}<br>Waktu: ${nowTime()}`;
+ const late=settings.lateAfter && nowTime().slice(0,5)>settings.lateAfter;
+ $("scanStatus").value=late?"Terlambat":"Hadir";
 }
 
-async function stopScanner() {
-  if (!scanner || !scanRunning) return;
+$("saveScanBtn").onclick=async()=>{
+ if(!selectedStudent)return toast("Scan siswa terlebih dahulu.");
+ const day=today(), id=selectedStudent.id;
+ const existing=attendance[day]?.[id];
+ if(existing)return toast("Siswa ini sudah absen hari ini.");
+ const status=$("scanStatus").value;
+ const data={
+  studentId:id,name:selectedStudent.name,nis:selectedStudent.nis,
+  className:selectedStudent.className,status,time:nowTime(),date:day,
+  timestamp:Date.now(),by:auth.currentUser?.email||"petugas"
+ };
+ await db.ref(`attendance/${day}/${id}`).set(data);
+ toast("Absensi tersimpan.");renderDashboard();
+};
 
-  try {
-    await scanner.stop();
-    await scanner.clear();
-  } catch (error) {
-    console.error(error);
-  }
+$("waScanBtn").onclick=()=>{
+ if(!selectedStudent?.phone)return toast("Nomor WhatsApp siswa belum diisi.");
+ const text=`ABSENSI ${settings.schoolName}
+Nama: ${selectedStudent.name}
+Kelas: ${selectedStudent.className}
+Status: ${$("scanStatus").value}
+Tanggal: ${today()}
+Waktu: ${nowTime()}`;
+ window.open(`https://wa.me/${selectedStudent.phone.replace(/\D/g,"")}?text=${encodeURIComponent(text)}`,"_blank")
+};
 
-  scanner = null;
-  scanRunning = false;
+function renderAttendance(){
+ const d=$("dateFilter").value||today(),cl=$("attendanceClassFilter").value,st=$("statusFilter").value;
+ const arr=Object.values(attendance[d]||{}).filter(a=>(!cl||a.className===cl)&&(!st||a.status===st)).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+ $("attendanceTable").innerHTML=`<table><thead><tr><th>Waktu</th><th>Nama</th><th>NIS</th><th>Kelas</th><th>Status</th><th>Petugas</th></tr></thead><tbody>${arr.map(a=>`<tr><td>${esc(a.time)}</td><td>${esc(a.name)}</td><td>${esc(a.nis)}</td><td>${esc(a.className)}</td><td>${esc(a.status)}</td><td>${esc(a.by)}</td></tr>`).join("")}</tbody></table>`;
 }
 
-async function handleScan(code) {
-  const studentsSnap = await db
-    .ref("students")
-    .orderByChild("code")
-    .equalTo(code)
-    .once("value");
-
-  const students = studentsSnap.val();
-
-  if (!students) {
-    alert("QR siswa tidak ditemukan.");
-    return;
-  }
-
-  const studentId = Object.keys(students)[0];
-  const student = students[studentId];
-
-  await recordAttendance(studentId, student);
-}
-
-/* =========================
-   ATTENDANCE
-========================= */
-
-async function recordAttendance(studentId, student) {
-  const now = new Date();
-
-  const dateKey = formatDate(now);
-
-  const existing = await db
-    .ref(`attendance/${dateKey}/${studentId}`)
-    .once("value");
-
-  if (existing.exists()) {
-    alert(
-      `${student.name} sudah melakukan absensi hari ini.`
-    );
-    return;
-  }
-
-  const settingsSnap = await db
-    .ref("settings")
-    .once("value");
-
-  const settings = settingsSnap.val() || {};
-
-  const lateAfter = settings.lateAfter || "07:30";
-
-  const currentTime =
-    now.getHours().toString().padStart(2, "0") +
-    ":" +
-    now.getMinutes().toString().padStart(2, "0");
-
-  const status =
-    currentTime > lateAfter
-      ? "Terlambat"
-      : "Hadir";
-
-  const data = {
-    studentId,
-    name: student.name,
-    className: student.className,
-    code: student.code,
-    status,
-    time: currentTime,
-    timestamp: Date.now(),
-    recordedBy: currentUser?.email || ""
-  };
-
-  await db
-    .ref(`attendance/${dateKey}/${studentId}`)
-    .set(data);
-
-  alert(
-    `Absensi berhasil!\n\n${student.name}\n${status}\n${currentTime}`
-  );
-
-  loadDashboard();
-}
-
-/* =========================
-   ATTENDANCE RECORD
-========================= */
-
-async function renderAttendance() {
-  const tbody = $("attendanceTableBody");
-
-  if (!tbody) return;
-
-  const dateInput = $("attendanceDate");
-
-  const dateKey =
-    dateInput?.value || formatDate(new Date());
-
-  try {
-    const snap = await db
-      .ref("attendance/" + dateKey)
-      .once("value");
-
-    const data = snap.val() || {};
-
-    tbody.innerHTML = "";
-
-    Object.values(data).forEach((item) => {
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-        <td>${escapeHtml(item.name || "")}</td>
-        <td>${escapeHtml(item.className || "")}</td>
-        <td>${escapeHtml(item.status || "")}</td>
-        <td>${escapeHtml(item.time || "")}</td>
-      `;
-
-      tbody.appendChild(tr);
-    });
-
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-/* =========================
-   CSV EXPORT
-========================= */
-
-async function exportAttendanceCSV() {
-  const dateInput = $("attendanceDate");
-
-  const dateKey =
-    dateInput?.value || formatDate(new Date());
-
-  const snap = await db
-    .ref("attendance/" + dateKey)
-    .once("value");
-
-  const data = snap.val() || {};
-
-  let csv =
-    "Tanggal,NIS,Nama,Kelas,Status,Jam\n";
-
-  Object.values(data).forEach((item) => {
-    csv += [
-      dateKey,
-      csvEscape(item.studentId || ""),
-      csvEscape(item.name || ""),
-      csvEscape(item.className || ""),
-      csvEscape(item.status || ""),
-      csvEscape(item.time || "")
-    ].join(",") + "\n";
-  });
-
-  const blob = new Blob(
-    ["\ufeff" + csv],
-    {
-      type: "text/csv;charset=utf-8;"
-    }
-  );
-
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-
-  a.href = url;
-  a.download = `rekap-absensi-${dateKey}.csv`;
-
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  URL.revokeObjectURL(url);
-}
-
-/* =========================
-   SETTINGS
-========================= */
-
-async function loadSettings() {
-  const snap = await db.ref("settings").once("value");
-
-  const settings = snap.val() || {};
-
-  setValue(
-    "lateAfter",
-    settings.lateAfter || "07:30"
-  );
-}
-
-async function saveSettings() {
-  if (!isAdmin()) {
-    alert("Hanya Admin yang dapat mengubah pengaturan.");
-    return;
-  }
-
-  const lateAfter =
-    $("lateAfter")?.value || "07:30";
-
-  await db.ref("settings").set({
-    lateAfter
-  });
-
-  alert("Pengaturan berhasil disimpan.");
-}
-
-/* =========================
-   WHATSAPP
-========================= */
-
-function sendWhatsApp(message, phone = "") {
-  const text = encodeURIComponent(message);
-
-  let url;
-
-  if (phone) {
-    const cleanPhone = phone.replace(/\D/g, "");
-
-    url =
-      `https://wa.me/${cleanPhone}?text=${text}`;
-  } else {
-    url =
-      `https://wa.me/?text=${text}`;
-  }
-
-  window.open(url, "_blank");
-}
-
-/* =========================
-   EVENT BINDINGS
-========================= */
-
-const startScannerBtn = $("startScanner");
-
-if (startScannerBtn) {
-  startScannerBtn.addEventListener(
-    "click",
-    startScanner
-  );
-}
-
-const stopScannerBtn = $("stopScanner");
-
-if (stopScannerBtn) {
-  stopScannerBtn.addEventListener(
-    "click",
-    stopScanner
-  );
-}
-
-const exportBtn = $("exportCSV");
-
-if (exportBtn) {
-  exportBtn.addEventListener(
-    "click",
-    exportAttendanceCSV
-  );
-}
-
-const refreshAttendanceBtn =
-  $("refreshAttendance");
-
-if (refreshAttendanceBtn) {
-  refreshAttendanceBtn.addEventListener(
-    "click",
-    renderAttendance
-  );
-}
-
-const saveSettingsBtn =
-  $("saveSettings");
-
-if (saveSettingsBtn) {
-  saveSettingsBtn.addEventListener(
-    "click",
-    saveSettings
-  );
-}
-
-const attendanceDate =
-  $("attendanceDate");
-
-if (attendanceDate) {
-  attendanceDate.value =
-    formatDate(new Date());
-
-  attendanceDate.addEventListener(
-    "change",
-    renderAttendance
-  );
-}
-
-/* =========================
-   REALTIME LISTENERS
-========================= */
-
-db.ref("students").on("value", () => {
-  if (isAdmin()) {
-    renderStudents();
-  }
-
-  loadDashboard();
-});
-
-db.ref("classes").on("value", () => {
-  if (isAdmin()) {
-    renderClasses();
-  }
-});
-
-db.ref("settings").on("value", () => {
-  loadSettings();
-});
-
-function formatDate(date) {
-  const year = date.getFullYear();
-
-  const month =
-    String(date.getMonth() + 1)
-      .padStart(2, "0");
-
-  const day =
-    String(date.getDate())
-      .padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
-function setValue(id, value) {
-  const el = $(id);
-
-  if (el) {
-    el.value = value;
-  }
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function csvEscape(value) {
-  const text = String(value ?? "");
-
-  if (
-    text.includes(",") ||
-    text.includes('"') ||
-    text.includes("\n")
-  ) {
-    return `"${text.replaceAll('"', '""')}"`;
-  }
-
-  return text;
-}
-
-/* =========================
-   INITIAL LOAD
-========================= */
-
-loadSettings();
+$("dateFilter").value=today();
+$("dateFilter").onchange=renderAttendance;
+$("attendanceClassFilter").onchange=renderAttendance;
+$("statusFilter").onchange=renderAttendance;
+
+$("exportBtn").onclick=()=>{
+ const d=$("dateFilter").value||today(),rows=Object.values(attendance[d]||{});
+ const head=["Tanggal","Waktu","Nama","NIS","Kelas","Status","Petugas"];
+ const csv=[head,...rows.map(a=>[a.date,a.time,a.name,a.nis,a.className,a.status,a.by])]
+ .map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");
+ const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download=`rekap-absensi-${d}.csv`;a.click();URL.revokeObjectURL(url);
+};
+
+$("saveSettingsBtn").onclick=async()=>{
+ settings.schoolName=$("schoolName").value.trim()||settings.schoolName;
+ settings.lateAfter=$("lateAfter").value||"07:15";
+ await db.ref("settings").set(settings);toast("Pengaturan disimpan")
+};
+
+$("refreshDashboard").onclick=renderDashboard;
