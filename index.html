@@ -815,6 +815,22 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+  <script>
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    const splash = document.getElementById("appSplash");
+
+    if (splash) {
+      splash.style.opacity = "0";
+      splash.style.visibility = "hidden";
+
+      setTimeout(() => {
+        splash.remove();
+      }, 500);
+    }
+  }, 900);
+});
+</script>
 
 </body>
 </html>
