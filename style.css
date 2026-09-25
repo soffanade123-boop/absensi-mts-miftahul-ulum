@@ -2138,3 +2138,302 @@ tbody tr:last-child td{
     padding:18px;
   }
 }
+/* =========================================
+   FINAL MOBILE / HP OPTIMIZATION
+========================================= */
+
+html{
+  -webkit-text-size-adjust:100%;
+}
+
+body{
+  overflow-x:hidden;
+}
+
+/* Topbar HP */
+@media(max-width:650px){
+
+  .topbar{
+    min-height:64px;
+    padding:10px 14px;
+  }
+
+  .brand{
+    min-width:0;
+  }
+
+  .brand-icon.small{
+    width:34px;
+    height:34px;
+    flex:0 0 34px;
+  }
+
+  .brand strong{
+    font-size:11px;
+  }
+
+  .brand .sub{
+    font-size:9px;
+    max-width:150px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .top-actions{
+    gap:7px;
+  }
+
+  .account{
+    display:none;
+  }
+
+  .logout-button{
+    padding:8px 10px;
+    font-size:10px;
+  }
+
+  /* Navigasi horizontal */
+  .tabs{
+    overflow-x:auto;
+    justify-content:flex-start;
+    gap:3px;
+    padding:7px 10px;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .tabs::-webkit-scrollbar{
+    display:none;
+  }
+
+  .tab{
+    flex:0 0 auto;
+    min-width:max-content;
+    padding:9px 12px;
+    font-size:10px;
+    border-radius:8px;
+  }
+
+  .tab-icon{
+    font-size:12px;
+  }
+
+  /* Container */
+  .container{
+    width:100%;
+    padding:17px 12px 30px;
+  }
+
+  /* Heading */
+  .page-head{
+    gap:12px;
+    margin-bottom:16px;
+  }
+
+  .page-head h2{
+    font-size:21px;
+    letter-spacing:-.4px;
+  }
+
+  .page-head .muted{
+    font-size:11px;
+    line-height:1.5;
+  }
+
+  .eyebrow{
+    font-size:8px;
+  }
+
+  /* Tombol */
+  button{
+    min-height:40px;
+  }
+
+  .page-head > .primary,
+  .page-head > .secondary{
+    flex:0 0 auto;
+  }
+
+  /* Card */
+  .card{
+    border-radius:13px;
+  }
+
+  /* Statistik */
+  .stats{
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+
+  .stat{
+    padding:15px;
+    min-height:126px;
+    border-radius:13px;
+  }
+
+  .stat-label{
+    font-size:8px;
+  }
+
+  .stat-icon{
+    width:27px;
+    height:27px;
+    font-size:12px;
+  }
+
+  .stat-value{
+    font-size:25px;
+  }
+
+  .stat-caption{
+    font-size:9px;
+  }
+
+  /* Dashboard */
+  .dashboard-grid{
+    gap:12px;
+    margin-top:12px;
+  }
+
+  .recent-card{
+    min-height:220px;
+  }
+
+  /* Scanner */
+  .scanner-frame{
+    padding:10px;
+  }
+
+  #reader{
+    width:100% !important;
+    max-width:100%;
+    overflow:hidden;
+  }
+
+  .scanner-info{
+    font-size:10px;
+  }
+
+  /* Form */
+  .form-card,
+  .settings-card,
+  .system-info-card{
+    padding:16px;
+  }
+
+  .form-grid{
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+
+  .input-group label{
+    font-size:10px;
+  }
+
+  .input-group input,
+  .input-group select{
+    min-height:44px;
+    font-size:13px;
+  }
+
+  .form-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+
+  .form-actions button{
+    width:100%;
+  }
+
+  /* Search siswa */
+  .student-toolbar{
+    gap:8px;
+  }
+
+  .search-box input{
+    height:44px;
+  }
+
+  .class-filter select{
+    height:44px;
+  }
+
+  /* Tabel */
+  .table-card-header{
+    padding:15px;
+  }
+
+  .table-card-header h3{
+    font-size:14px;
+  }
+
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  /* Rekap */
+  .attendance-filter{
+    padding:15px;
+  }
+
+  .attendance-filter-grid{
+    gap:10px;
+  }
+
+  /* Pengaturan */
+  .settings-grid{
+    gap:12px;
+  }
+
+  .settings-save{
+    width:100%;
+  }
+
+  /* Toast */
+  .toast{
+    left:12px;
+    right:12px;
+    bottom:15px;
+    width:auto;
+    max-width:none;
+    text-align:center;
+  }
+}
+
+
+/* HP sangat kecil */
+@media(max-width:380px){
+
+  .container{
+    padding-left:9px;
+    padding-right:9px;
+  }
+
+  .stats{
+    gap:8px;
+  }
+
+  .stat{
+    padding:13px;
+    min-height:118px;
+  }
+
+  .stat-value{
+    font-size:23px;
+  }
+
+  .stat-caption{
+    font-size:8px;
+  }
+
+  .page-head h2{
+    font-size:19px;
+  }
+
+  .tab{
+    padding:8px 10px;
+  }
+}
