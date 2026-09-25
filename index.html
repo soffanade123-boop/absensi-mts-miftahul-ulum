@@ -157,113 +157,108 @@
 
     <section id="dashboard" class="panel active">
 
-      <div class="page-head">
+  <div class="page-head dashboard-head">
+    <div>
+      <span class="eyebrow">OVERVIEW</span>
+      <h2>Dashboard</h2>
+      <p class="muted">Ringkasan aktivitas absensi hari ini.</p>
+    </div>
 
+    <button id="refreshDashboard" class="secondary refresh-btn">
+      ↻ Refresh
+    </button>
+  </div>
+
+  <div class="stats">
+
+    <div class="stat stat-total">
+      <div class="stat-top">
+        <span class="stat-label">TOTAL SISWA</span>
+        <span class="stat-icon">♙</span>
+      </div>
+
+      <div id="statStudents" class="stat-value">0</div>
+      <div class="stat-caption">Data siswa terdaftar</div>
+      <div class="stat-line"></div>
+    </div>
+
+    <div class="stat stat-present">
+      <div class="stat-top">
+        <span class="stat-label">HADIR</span>
+        <span class="stat-icon">✓</span>
+      </div>
+
+      <div id="statPresent" class="stat-value">0</div>
+      <div class="stat-caption">Kehadiran hari ini</div>
+      <div class="stat-line"></div>
+    </div>
+
+    <div class="stat stat-late">
+      <div class="stat-top">
+        <span class="stat-label">TERLAMBAT</span>
+        <span class="stat-icon">◷</span>
+      </div>
+
+      <div id="statLate" class="stat-value">0</div>
+      <div class="stat-caption">Siswa terlambat</div>
+      <div class="stat-line"></div>
+    </div>
+
+    <div class="stat stat-missing">
+      <div class="stat-top">
+        <span class="stat-label">BELUM ABSEN</span>
+        <span class="stat-icon">!</span>
+      </div>
+
+      <div id="statMissing" class="stat-value">0</div>
+      <div class="stat-caption">Belum melakukan absensi</div>
+      <div class="stat-line"></div>
+    </div>
+
+  </div>
+
+  <div class="dashboard-grid">
+
+    <div class="card recent-card">
+
+      <div class="card-heading">
         <div>
-          <span class="eyebrow">OVERVIEW</span>
-          <h2>Dashboard</h2>
-          <p class="muted">
-            Ringkasan aktivitas absensi hari ini.
-          </p>
+          <span class="eyebrow">AKTIVITAS</span>
+          <h3>Absensi Terbaru</h3>
         </div>
 
-        <button id="refreshDashboard" class="secondary">
-          ↻ Refresh
-        </button>
-
+        <span class="live-badge">
+          <span></span> LIVE
+        </span>
       </div>
 
+      <div id="recentList" class="recent-list"></div>
 
-      <div class="stats">
+    </div>
 
-  <div class="stat stat-total">
-    <div class="stat-top">
-      <div>
-        <span>Total Siswa</span>
-        <small>Data terdaftar</small>
+    <div class="card dashboard-info">
+
+      <div class="dashboard-info-icon">✓</div>
+
+      <span class="eyebrow">SISTEM AKTIF</span>
+
+      <h3>Absensi Digital</h3>
+
+      <p>
+        Sistem absensi terhubung dengan database realtime.
+        Data dapat digunakan dari beberapa perangkat.
+      </p>
+
+      <div class="dashboard-status">
+        <span class="status-dot"></span>
+        <span>Sistem berjalan normal</span>
       </div>
-      <div class="stat-icon">♙</div>
+
     </div>
 
-    <b id="statStudents">0</b>
-
-    <div class="stat-line">
-      <span></span>
-    </div>
   </div>
 
-
-  <div class="stat stat-present">
-    <div class="stat-top">
-      <div>
-        <span>Hadir</span>
-        <small>Hari ini</small>
-      </div>
-      <div class="stat-icon">✓</div>
-    </div>
-
-    <b id="statPresent">0</b>
-
-    <div class="stat-line">
-      <span></span>
-    </div>
-  </div>
-
-
-  <div class="stat stat-late">
-    <div class="stat-top">
-      <div>
-        <span>Terlambat</span>
-        <small>Hari ini</small>
-      </div>
-      <div class="stat-icon">◷</div>
-    </div>
-
-    <b id="statLate">0</b>
-
-    <div class="stat-line">
-      <span></span>
-    </div>
-  </div>
-
-
-  <div class="stat stat-missing">
-    <div class="stat-top">
-      <div>
-        <span>Belum Absen</span>
-        <small>Hari ini</small>
-      </div>
-      <div class="stat-icon">−</div>
-    </div>
-
-    <b id="statMissing">0</b>
-
-    <div class="stat-line">
-      <span></span>
-    </div>
-  </div>
-
-</div>
-      <div class="card activity-card">
-
-        <div class="card-heading">
-
-          <div>
-            <span class="eyebrow">REALTIME</span>
-            <h3>Aktivitas Terbaru</h3>
-          </div>
-
-          <span class="live-badge">
-            <i></i> LIVE
-          </span>
-
-        </div>
-
-        <div id="recentList" class="table-wrap"></div>
-
-      </div>
-
-    </section>
+</section>
 
 
     <!-- ================= SCANNER ================= -->
