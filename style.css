@@ -897,3 +897,189 @@ tbody tr:last-child td{
     font-size:20px;
   }
 }
+/* ================= PREMIUM DASHBOARD ================= */
+
+.stats{
+  position:relative;
+}
+
+.stat{
+  transition:
+    transform .25s ease,
+    box-shadow .25s ease,
+    border-color .25s ease;
+}
+
+.stat:hover{
+  transform:translateY(-4px);
+  box-shadow:0 18px 45px rgba(15,23,42,.11);
+  border-color:#d7dee8;
+}
+
+.stat-top > div:first-child{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.stat-top span{
+  color:#334155;
+  font-size:12px;
+  font-weight:800;
+}
+
+.stat-top small{
+  color:#94a3b8;
+  font-size:10px;
+}
+
+.stat b{
+  font-size:35px;
+  letter-spacing:-1px;
+}
+
+.stat-icon{
+  position:relative;
+  z-index:2;
+  transition:.25s ease;
+}
+
+.stat:hover .stat-icon{
+  transform:scale(1.08);
+}
+
+.stat-line{
+  position:absolute;
+  left:19px;
+  right:19px;
+  bottom:0;
+  height:3px;
+  overflow:hidden;
+  border-radius:5px 5px 0 0;
+  background:#f1f5f9;
+}
+
+.stat-line span{
+  display:block;
+  width:38%;
+  height:100%;
+  border-radius:inherit;
+  transition:.4s ease;
+}
+
+/* TOTAL */
+
+.stat-total .stat-icon{
+  background:#eef2ff;
+  color:#475569;
+}
+
+.stat-total .stat-line span{
+  background:#64748b;
+}
+
+/* HADIR */
+
+.stat-present .stat-icon{
+  background:#ecfdf3;
+  color:#15803d;
+}
+
+.stat-present .stat-line span{
+  background:#16a34a;
+}
+
+/* TERLAMBAT */
+
+.stat-late .stat-icon{
+  background:#fff7ed;
+  color:#c2410c;
+}
+
+.stat-late .stat-line span{
+  background:#f97316;
+}
+
+/* BELUM ABSEN */
+
+.stat-missing .stat-icon{
+  background:#fef2f2;
+  color:#dc2626;
+}
+
+.stat-missing .stat-line span{
+  background:#ef4444;
+}
+
+
+/* ================= DASHBOARD ACTIVITY ================= */
+
+.activity-card{
+  overflow:hidden;
+}
+
+.activity-card .table-wrap{
+  margin:0 -21px -21px;
+}
+
+.activity-card table{
+  min-width:600px;
+}
+
+.activity-card th:first-child,
+.activity-card td:first-child{
+  padding-left:21px;
+}
+
+.activity-card th:last-child,
+.activity-card td:last-child{
+  padding-right:21px;
+}
+
+
+/* ================= DASHBOARD HEADER ================= */
+
+#dashboard .page-head{
+  position:relative;
+}
+
+#dashboard .page-head:after{
+  content:"";
+  position:absolute;
+  left:0;
+  bottom:-11px;
+  width:42px;
+  height:3px;
+  border-radius:10px;
+  background:#0f172a;
+}
+
+
+/* ================= MOBILE DASHBOARD ================= */
+
+@media(max-width:650px){
+
+  .stat b{
+    font-size:28px;
+  }
+
+  .stat-line{
+    left:15px;
+    right:15px;
+  }
+
+  .activity-card .table-wrap{
+    margin:0 -16px -16px;
+  }
+
+  .activity-card th:first-child,
+  .activity-card td:first-child{
+    padding-left:16px;
+  }
+
+  .activity-card th:last-child,
+  .activity-card td:last-child{
+    padding-right:16px;
+  }
+
+}
