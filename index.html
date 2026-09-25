@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#1f2937">
+  <meta name="description" content="Aplikasi Absensi Barcode Multi-HP">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <title>Absensi Barcode - MTs Miftahul Ulum</title>
+</head>
+<body>
+  <div id="loginView" class="center-screen">
+    <div class="card login-card">
+      <h1>Absensi Barcode</h1>
+      <p class="muted">MTs Miftahul Ulum Pronojiwo</p>
+      <input id="loginEmail" type="email" placeholder="Email admin/petugas">
+      <input id="loginPassword" type="password" placeholder="Password">
+      <button id="loginBtn" class="primary">Masuk</button>
+      <p id="loginMsg" class="msg"></p>
+      <small>Gunakan akun Firebase Authentication yang sudah dibuat.</small>
+    </div>
+  </div>
+
+  <div id="appView" class="hidden">
+    <header class="topbar">
+      <div>
+        <strong>ABSENSI BARCODE</strong>
+        <span class="sub">MTs Miftahul Ulum Pronojiwo</span>
+      </div>
+      <div class="top-actions">
+        <span id="userEmail" class="user-email"></span>
+        <button id="logoutBtn" class="ghost">Keluar</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button data-tab="dashboard" class="tab active">Dashboard</button>
+      <button data-tab="scanner" class="tab">Scanner</button>
+      <button data-tab="students" class="tab">Siswa</button>
+      <button data-tab="classes" class="tab">Kelas</button>
+      <button data-tab="attendance" class="tab">Rekap</button>
+      <button data-tab="settings" class="tab">Pengaturan</button>
+    </nav>
+
+    <main class="container">
+      <section id="dashboard" class="panel active">
+        <div class="page-head"><div><h2>Dashboard</h2><p class="muted">Ringkasan absensi hari ini.</p></div>
+          <button id="refreshDashboard" class="secondary">Refresh</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><span>Total Siswa</span><b id="statStudents">0</b></div>
+          <div class="stat"><span>Hadir</span><b id="statPresent">0</b></div>
+          <div class="stat"><span>Terlambat</span><b id="statLate">0</b></div>
+          <div class="stat"><span>Belum Absen</span><b id="statMissing">0</b></div>
+        </div>
+        <div class="card">
+          <h3>Aktivitas Terbaru</h3>
+          <div id="recentList" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <section id="scanner" class="panel">
+        <div class="page-head"><div><h2>Scanner Barcode / QR</h2><p class="muted">Semua HP yang login memakai database yang sama secara realtime.</p></div></div>
+        <div class="scanner-grid">
+          <div class="card">
+            <div id="reader"></div>
+            <button id="startScanBtn" class="primary">Mulai Kamera</button>
+            <button id="stopScanBtn" class="secondary">Stop Kamera</button>
+            <p id="scanMsg" class="msg"></p>
+          </div>
+          <div class="card">
+            <h3>Hasil Scan</h3>
+            <div id="scanResult" class="result-box">Belum ada scan.</div>
+            <label>Status</label>
+            <select id="scanStatus">
+              <option value="Hadir">Hadir</option>
+              <option value="Terlambat">Terlambat</option>
+              <option value="Izin">Izin</option>
+              <option value="Sakit">Sakit</option>
+              <option value="Alpa">Alpa</option>
+            </select>
+            <button id="saveScanBtn" class="primary">Simpan Absensi</button>
+            <button id="waScanBtn" class="whatsapp">Kirim WhatsApp</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="students" class="panel">
+        <div class="page-head"><div><h2>Data Siswa</h2><p class="muted">Barcode siswa bersifat permanen meskipun kelas berubah.</p></div>
+          <button id="newStudentBtn" class="primary">+ Tambah Siswa</button>
+        </div>
+        <div class="filters">
+          <input id="studentSearch" placeholder="Cari nama / NIS / barcode...">
+          <select id="studentClassFilter"><option value="">Semua Kelas</option></select>
+        </div>
+        <div id="studentForm" class="card hidden">
+          <h3>Form Siswa</h3>
+          <input id="studentId" type="hidden">
+          <div class="form-grid">
+            <input id="studentNis" placeholder="NIS / NISN">
+            <input id="studentName" placeholder="Nama lengkap">
+            <select id="studentClass"></select>
+            <input id="studentPhone" placeholder="Nomor WhatsApp (628...)">
+          </div>
+          <div class="form-actions">
+            <button id="saveStudentBtn" class="primary">Simpan</button>
+            <button id="cancelStudentBtn" class="secondary">Batal</button>
+          </div>
+        </div>
+        <div class="card"><div id="studentsTable" class="table-wrap"></div></div>
+      </section>
+
+      <section id="classes" class="panel">
+        <div class="page-head"><div><h2>Data Kelas</h2><p class="muted">Kelas bebas: VII, VII A, VII B, VIII, VIII A, IX B, dan seterusnya.</p></div>
+          <button id="newClassBtn" class="primary">+ Tambah Kelas</button>
+        </div>
+        <div id="classForm" class="card hidden">
+          <input id="classId" type="hidden">
+          <input id="className" placeholder="Nama kelas, contoh: VIII A">
+          <div class="form-actions"><button id="saveClassBtn" class="primary">Simpan</button><button id="cancelClassBtn" class="secondary">Batal</button></div>
+        </div>
+        <div class="card"><div id="classesTable" class="table-wrap"></div></div>
+      </section>
+
+      <section id="attendance" class="panel">
+        <div class="page-head"><div><h2>Rekap Absensi</h2><p class="muted">Filter tanggal dan kelas, lalu ekspor CSV untuk Excel.</p></div>
+          <button id="exportBtn" class="primary">Export CSV</button>
+        </div>
+        <div class="filters">
+          <input id="dateFilter" type="date">
+          <select id="attendanceClassFilter"><option value="">Semua Kelas</option></select>
+          <select id="statusFilter"><option value="">Semua Status</option><option>Hadir</option><option>Terlambat</option><option>Izin</option><option>Sakit</option><option>Alpa</option></select>
+        </div>
+        <div class="card"><div id="attendanceTable" class="table-wrap"></div></div>
+      </section>
+
+      <section id="settings" class="panel">
+        <div class="page-head"><div><h2>Pengaturan</h2><p class="muted">Konfigurasi jam masuk dan identitas madrasah.</p></div></div>
+        <div class="card form-grid">
+          <input id="schoolName" placeholder="Nama sekolah/madrasah">
+          <input id="lateAfter" type="time" value="07:15">
+          <button id="saveSettingsBtn" class="primary">Simpan Pengaturan</button>
+        </div>
+        <div class="card">
+          <h3>WhatsApp</h3>
+          <p>Mode bawaan memakai tombol WhatsApp untuk membuka chat ke nomor siswa/orang tua. Untuk pengiriman otomatis tanpa klik, sambungkan backend ke WhatsApp Business Cloud API (lihat README).</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
