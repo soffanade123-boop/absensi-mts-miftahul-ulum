@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 let students={}, classes={}, attendance={}, settings={schoolName:"MTs Miftahul Ulum Pronojiwo",lateAfter:"07:15"};
 let selectedStudent=null, scanner=null, lastScanCode=null;
-
+let currentRole = "petugas";
 const today=()=>new Date().toISOString().slice(0,10);
 const nowTime=()=>new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -17,12 +17,53 @@ function showTab(id){
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 auth.onAuthStateChanged(async user=>{
- if(user){$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userEmail").textContent=user.email||"";await loadAll();}
- else{$("loginView").classList.remove("hidden");$("appView").classList.add("hidden");}
+  if(user){
+    $("loginView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+    $("userEmail").textContent=user.email||"";
+
+    try{
+      const roleSnap = await db.ref("roles/"+user.uid).once("value");
+      currentRole = roleSnap.val()?.role || "admin";
+
+      applyRoleUI();
+      await loadAll();
+    }catch(e){
+      console.error(e);
+      $("loginMsg").textContent="Gagal memuat hak akses.";
+    }
+
+  }else{
+    $("loginView").classList.remove("hidden");
+    $("appView").classList.add("hidden");
+    currentRole="petugas";
+  }
 });
 $("loginBtn").onclick=async()=>{try{await auth.signInWithEmailAndPassword($("loginEmail").value,$("loginPassword").value)}catch(e){$("loginMsg").textContent=e.message}};
 $("logoutBtn").onclick=()=>auth.signOut();
+function applyRoleUI(){
+  const adminOnly = [
+    '[data-tab="students"]',
+    '[data-tab="classes"]',
+    '[data-tab="settings"]'
+  ];
 
+  adminOnly.forEach(selector=>{
+    const el=document.querySelector(selector);
+    if(el) el.style.display = currentRole==="admin" ? "" : "none";
+  });
+
+  const dashboardTab=document.querySelector('[data-tab="dashboard"]');
+  const scannerTab=document.querySelector('[data-tab="scanner"]');
+  const attendanceTab=document.querySelector('[data-tab="attendance"]');
+
+  if(dashboardTab) dashboardTab.style.display="";
+  if(scannerTab) scannerTab.style.display="";
+  if(attendanceTab) attendanceTab.style.display="";
+
+  $("userEmail").textContent =
+    `${auth.currentUser?.email||""} • ${currentRole==="admin"?"ADMIN":"PETUGAS"}`;
+}
 async function loadAll(){
  const snap=await db.ref().once("value"), d=snap.val()||{};
  students=d.students||{}; classes=d.classes||{}; attendance=d.attendance||{}; settings={...settings,...(d.settings||{})};
