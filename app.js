@@ -16,9 +16,44 @@ function showTab(id){
 }
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
-auth.onAuthStateChanged(async user=>{
- if(user){$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");$("userEmail").textContent=user.email||"";await loadAll();}
- else{$("loginView").classList.remove("hidden");$("appView").classList.add("hidden");}
+let currentRole = "petugas";
+console.log("ROLE SAAT INI:", currentRole);
+
+auth.onAuthStateChanged(async user => {
+
+  if (user) {
+
+    $("loginView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+
+    const roleSnap = await db.ref("roles/" + user.uid).once("value");
+    const roleData = roleSnap.val();
+
+    currentRole = roleData?.role === "petugas" ? "petugas" : "admin";
+    console.log("ROLE FIREBASE:", currentRole);
+
+    document.querySelector('[data-tab="students"]').style.display =
+      currentRole === "admin" ? "" : "none";
+
+    document.querySelector('[data-tab="classes"]').style.display =
+      currentRole === "admin" ? "" : "none";
+
+    document.querySelector('[data-tab="settings"]').style.display =
+      currentRole === "admin" ? "" : "none";
+
+    $("userEmail").textContent =
+      (user.email || "") + " • " +
+      (currentRole === "admin" ? "ADMIN" : "PETUGAS");
+
+    await loadAll();
+
+  } else {
+
+    $("loginView").classList.remove("hidden");
+    $("appView").classList.add("hidden");
+
+  }
+
 });
 $("loginBtn").onclick=async()=>{try{await auth.signInWithEmailAndPassword($("loginEmail").value,$("loginPassword").value)}catch(e){$("loginMsg").textContent=e.message}};
 $("logoutBtn").onclick=()=>auth.signOut();
