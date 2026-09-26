@@ -95,6 +95,107 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&
 const toast=m=>{const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)};
 const key=s=>String(s).replace(/[.#$/[\]]/g,"_");
 
+// v2.6 OFFLINE SCAN: antrean lokal agar scan tetap bisa dilakukan saat internet putus.
+const OFFLINE_QUEUE_KEY="absensiOfflineQueue_v26";
+let offlineQueue=[];
+try{offlineQueue=JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)||"[]");if(!Array.isArray(offlineQueue))offlineQueue=[];}catch{offlineQueue=[];}
+function saveOfflineQueue(){try{localStorage.setItem(OFFLINE_QUEUE_KEY,JSON.stringify(offlineQueue));}catch(e){console.warn("Queue lokal gagal disimpan",e)}}
+function setOnlineBadge(){
+  let el=document.getElementById("offlineStatusBadge");
+  if(!el){el=document.createElement("div");el.id="offlineStatusBadge";el.style.cssText="position:fixed;top:10px;right:10px;z-index:9999;padding:7px 11px;border-radius:999px;font:700 11px system-ui;box-shadow:0 5px 18px rgba(0,0,0,.10);transition:.2s;";document.body.appendChild(el)}
+  const online=navigator.onLine; const n=offlineQueue.length;
+  el.textContent=online?(n?`🟡 Online • ${n} antrean`:"🟢 Online"):"🔴 Offline • scan tetap bisa";
+  el.style.background=online?(n?"#fff7d6":"#e8f7ef"):"#ffe8e8";
+  el.style.color=online?(n?"#8a6500":"#12633f"):"#9b2020";
+}
+async function queueOrWrite(path,data,mode="set"){
+  if(navigator.onLine){
+    try{if(mode==="update")await db.ref(path).update(data);else await db.ref(path).set(data);return true;}catch(e){
+      offlineQueue.push({path,data,mode,queuedAt:Date.now()});saveOfflineQueue();setOnlineBadge();return false;
+    }
+  }
+  offlineQueue.push({path,data,mode,queuedAt:Date.now()});saveOfflineQueue();setOnlineBadge();return false;
+}
+async function flushOfflineQueue(){
+  if(!navigator.onLine||!offlineQueue.length){setOnlineBadge();return;}
+  const pending=[...offlineQueue]; offlineQueue=[]; saveOfflineQueue();
+  const failed=[];
+  for(const item of pending){
+    try{if(item.mode==="update")await db.ref(item.path).update(item.data);else await db.ref(item.path).set(item.data);}
+    catch(e){failed.push(item);}
+  }
+  if(failed.length){offlineQueue=failed;saveOfflineQueue();toast(`${failed.length} data masih menunggu koneksi.`)}
+  else if(pending.length)toast(`${pending.length} data offline berhasil disinkronkan.`);
+  setOnlineBadge();
+}
+function updateLocalAttendance(path,data,mode="set"){
+  const m=path.match(/^attendance\/([^/]+)\/([^/]+)(?:\/(pulang))?$/);
+  if(!m)return;
+  const [,day,id,child]=m; attendance[day]=attendance[day]||{}; attendance[day][id]=attendance[day][id]||{};
+  if(child==="pulang")attendance[day][id].pulang=data.pulang||data;
+  else attendance[day][id]=data;
+}
+window.addEventListener("online",()=>{setOnlineBadge();flushOfflineQueue()});
+window.addEventListener("offline",setOnlineBadge);
+document.addEventListener("DOMContentLoaded",()=>{setOnlineBadge();setTimeout(flushOfflineQueue,1200)});
+setTimeout(setOnlineBadge,300);
+
+async function logActivity(action, detail="", targetId="") {
+  try {
+    const u=auth.currentUser;
+    if(!u) return;
+    const id=db.ref("activityLogs").push().key;
+    await db.ref("activityLogs/"+id).set({
+      id, action, detail:String(detail||""), targetId:String(targetId||""),
+      uid:u.uid, email:u.email||"", role:currentRole,
+      timestamp:Date.now(), date:today(), time:nowTime()
+    });
+  } catch(e) { console.warn("Audit log gagal:",e); }
+}
+
+function ensureActivityLogUI(){
+  if(currentRole!=="admin") return;
+  const tabs=document.querySelector('.app-desktop-tabs') || document.querySelector('[data-tab="dashboard"]')?.parentElement;
+  if(tabs && !document.querySelector('[data-tab="activityLogs"]')){
+    const b=document.createElement("button"); b.type="button"; b.className="tab"; b.dataset.tab="activityLogs"; b.textContent="🛡️ Aktivitas";
+    b.onclick=()=>showTab("activityLogs"); tabs.appendChild(b);
+  }
+  if(!$('activityLogs')){
+    const panel=document.createElement("section"); panel.id="activityLogs"; panel.className="panel"; panel.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h2>🛡️ Log Aktivitas</h2><p style="color:#64748b">Riwayat tindakan Admin dan Petugas di aplikasi.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><label style="font-size:12px">Tanggal<input type="date" id="activityDate" style="display:block;margin-top:4px"></label><button type="button" class="secondary" id="activityRefresh">Tampilkan</button><button type="button" class="secondary" id="activityExport">Export CSV</button></div></div><div id="activityTable" style="margin-top:16px"></div></div>`;
+    document.getElementById("appView")?.appendChild(panel);
+    document.getElementById("activityDate").value=today();
+    document.getElementById("activityRefresh").onclick=renderActivityLogs;
+    document.getElementById("activityExport").onclick=exportActivityLogs;
+  }
+  renderActivityLogs();
+}
+
+async function fetchActivityLogs(){
+  if(currentRole!=="admin") return [];
+  const snap=await db.ref("activityLogs").orderByChild("timestamp").limitToLast(200).once("value");
+  return Object.values(snap.val()||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+}
+
+async function renderActivityLogs(){
+  const box=$("activityTable"); if(!box || currentRole!=="admin") return;
+  box.innerHTML='<div style="padding:18px;text-align:center;color:#64748b">Memuat log...</div>';
+  try{
+    const date=$("activityDate")?.value||"";
+    const rows=(await fetchActivityLogs()).filter(x=>!date||x.date===date);
+    box.innerHTML=`<div style="overflow:auto"><table><thead><tr><th>Waktu</th><th>Role</th><th>Petugas/Akun</th><th>Aksi</th><th>Detail</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.date||"")} ${esc(x.time||"")}</td><td><span class="badge">${esc(String(x.role||"").toUpperCase())}</span></td><td>${esc(x.email||x.uid||"")}</td><td><b>${esc(x.action||"")}</b></td><td>${esc(x.detail||"")}</td></tr>`).join("")||'<tr><td colspan="5" style="text-align:center">Belum ada aktivitas pada tanggal ini.</td></tr>'}</tbody></table></div>`;
+  }catch(e){ console.error(e); box.innerHTML='<div style="padding:18px;color:#b91c1c">Log tidak dapat dimuat.</div>'; }
+}
+
+async function exportActivityLogs(){
+  if(currentRole!=="admin") return toast("Hanya Admin yang dapat melihat log aktivitas.");
+  const date=$("activityDate")?.value||"";
+  const rows=(await fetchActivityLogs()).filter(x=>!date||x.date===date);
+  const head=["Tanggal","Waktu","Role","Email","Aksi","Detail","Target ID","UID"];
+  const csv=[head,...rows.map(x=>[x.date,x.time,x.role,x.email,x.action,x.detail,x.targetId,x.uid])].map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url; a.download=`log-aktivitas-${date||today()}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
 function installMtsBranding(){
   if(!document.getElementById("mtsFavicon")){
     const f=document.createElement("link");f.id="mtsFavicon";f.rel="icon";f.type="image/png";f.href="favicon-32.png";document.head.appendChild(f);
@@ -175,6 +276,7 @@ auth.onAuthStateChanged(async user=>{
       applyRoleUI();
       ensureTeacherUI();
       initAppStyleUI();
+      ensureActivityLogUI();
       await loadAll();
     }catch(e){
       console.error(e);
@@ -308,8 +410,11 @@ function applyRoleUI(){
   if(restoreBox) restoreBox.style.display=currentRole==="admin"?"":"none";
 }
 async function loadAll(){
- const snap=await db.ref().once("value"), d=snap.val()||{};
- students=d.students||{}; classes=d.classes||{}; teachers=d.teachers||{}; attendance=d.attendance||{}; settings={...settings,...(d.settings||{})};
+ const [ss,cs,ts,as,st]=await Promise.all([
+   db.ref("students").once("value"), db.ref("classes").once("value"),
+   db.ref("teachers").once("value"), db.ref("attendance").once("value"), db.ref("settings").once("value")
+ ]);
+ students=ss.val()||{}; classes=cs.val()||{}; teachers=ts.val()||{}; attendance=as.val()||{}; settings={...settings,...(st.val()||{})};
  $("schoolName").value=settings.schoolName;$("lateAfter").value=settings.lateAfter;
  refreshClassOptions();renderDashboard();
  listenRealtime();
@@ -519,7 +624,7 @@ $("saveStudentBtn").onclick=async()=>{
  ensureParentFields();
  const obj={id,nis:$("studentNis").value.trim(),name:$("studentName").value.trim(),className:$("studentClass").value,phone:$("studentPhone").value.trim(),parentName:$("studentParentName").value.trim(),parentPhone:$("studentParentPhone").value.trim(),code,updatedAt:Date.now()};
  if(!obj.name||!obj.className)return toast("Nama dan kelas wajib diisi.");
- await db.ref("students/"+id).set(obj);$("studentForm").classList.add("hidden");toast("Data siswa tersimpan.");
+ await db.ref("students/"+id).set(obj); await logActivity(old?"EDIT_SISWA":"TAMBAH_SISWA", `${obj.name} • Kelas ${obj.className}`, id); $("studentForm").classList.add("hidden");toast("Data siswa tersimpan.");
 };
 
 function ensureStudentHistoryUI(){
@@ -612,7 +717,7 @@ function monthName(ym){
 }
 
 window.editStudent=id=>{const s=students[id];if(!s)return;ensureParentFields();$("studentForm").classList.remove("hidden");$("studentId").value=id;$("studentNis").value=s.nis||"";$("studentName").value=s.name||"";$("studentPhone").value=s.phone||"";$("studentParentName").value=s.parentName||"";$("studentParentPhone").value=s.parentPhone||"";$("studentClass").value=s.className};
-window.deleteStudent=async id=>{if(confirm("Hapus siswa?"))await db.ref("students/"+id).remove()};
+window.deleteStudent=async id=>{if(currentRole!=="admin")return toast("Hanya Admin yang dapat menghapus siswa.");const s=students[id];if(confirm("Hapus siswa?")){await db.ref("students/"+id).remove();await logActivity("HAPUS_SISWA", `${s?.name||id}`, id)}};
 window.printCode = id => {
   const s = students[id];
   const w = window.open("", "_blank");
@@ -728,9 +833,9 @@ function renderClasses(){
 }
 $("newClassBtn").onclick=()=>{$("classForm").classList.remove("hidden");$("classId").value="";$("className").value=""};
 $("cancelClassBtn").onclick=()=>$("classForm").classList.add("hidden");
-$("saveClassBtn").onclick=async()=>{const name=$("className").value.trim();if(!name)return;const id=$("classId").value||db.ref("classes").push().key;await db.ref("classes/"+id).set({id,name});$("classForm").classList.add("hidden");toast("Kelas tersimpan")};
+$("saveClassBtn").onclick=async()=>{const name=$("className").value.trim();if(!name)return;const existingId=$("classId").value;const id=existingId||db.ref("classes").push().key;await db.ref("classes/"+id).set({id,name}); await logActivity(existingId?"EDIT_KELAS":"TAMBAH_KELAS", name, id); $("classForm").classList.add("hidden");toast("Kelas tersimpan")};
 window.editClass=id=>{$("classForm").classList.remove("hidden");$("classId").value=id;$("className").value=classes[id].name};
-window.deleteClass=async id=>{if(confirm("Hapus kelas? Data siswa tidak ikut terhapus."))await db.ref("classes/"+id).remove()};
+window.deleteClass=async id=>{if(currentRole!=="admin")return toast("Hanya Admin yang dapat menghapus kelas.");const c=classes[id];if(confirm("Hapus kelas? Data siswa tidak ikut terhapus.")){await db.ref("classes/"+id).remove();await logActivity("HAPUS_KELAS", c?.name||id, id)}};
 
 function ensureScanModeUI(){
  const reader=document.getElementById("reader");
@@ -814,13 +919,16 @@ async function onScan(decoded){
      if(scanMode==="guru-masuk"){
        if(entry)return toast("Guru ini sudah absen MASUK hari ini.");
        const data={masuk:{teacherId:g.id,name:g.name,nip:g.nip||"",phone:g.phone||"",status:"Hadir",time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas",type:"guru"}};
-       await db.ref(`attendance/${day}/${id}`).set(data);
-       beep(true);toast(`Absensi GURU MASUK ${g.name} tersimpan.`);
+       updateLocalAttendance(`attendance/${day}/${id}`,data);
+       await queueOrWrite(`attendance/${day}/${id}`,data);
+       await logActivity("GURU_MASUK", `${g.name} • ${g.nip||"-"}`, id); beep(true);toast(`Absensi GURU MASUK ${g.name} tersimpan.`);
      }else{
        if(!entry?.masuk)return toast("Guru belum melakukan absensi masuk.");
        if(entry.pulang)return toast("Guru ini sudah absen PULANG.");
-       await db.ref(`attendance/${day}/${id}/pulang`).set({time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"});
-       beep(true);toast(`Absensi GURU PULANG ${g.name} tersimpan.`);
+       const pulangData={time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+       updateLocalAttendance(`attendance/${day}/${id}/pulang`,pulangData);
+       await queueOrWrite(`attendance/${day}/${id}/pulang`,pulangData);
+       await logActivity("GURU_PULANG", `${g.name} • ${g.nip||"-"}`, id); beep(true);toast(`Absensi GURU PULANG ${g.name} tersimpan.`);
      }
      renderTeacherAttendance();
      return;
@@ -840,13 +948,16 @@ async function onScan(decoded){
      $("scanStatus").value=late?"Terlambat":"Hadir";
      if(entry)return toast("Siswa ini sudah absen MASUK hari ini.");
      const data={masuk:{studentId:s.id,name:s.name,nis:s.nis,className:s.className,status:$("scanStatus").value,time:nowTime(),date:today(),timestamp:Date.now(),by:auth.currentUser?.email||"petugas"}};
-     await db.ref(`attendance/${today()}/${s.id}`).set(data);
-     beep(true);toast(`Absensi MASUK ${s.name} tersimpan otomatis.`);
+     updateLocalAttendance(`attendance/${today()}/${s.id}`,data);
+     await queueOrWrite(`attendance/${today()}/${s.id}`,data);
+     await logActivity("SISWA_MASUK", `${s.name} • ${s.className} • ${data.masuk.status}`, s.id); beep(true);toast(`Absensi MASUK ${s.name} tersimpan otomatis.`);
    }else{
      if(!entry?.masuk)return toast("Siswa belum melakukan absensi masuk.");
      if(entry.pulang)return toast("Siswa ini sudah absen PULANG.");
-     await db.ref(`attendance/${today()}/${s.id}/pulang`).set({time:nowTime(),date:today(),timestamp:Date.now(),by:auth.currentUser?.email||"petugas"});
-     beep(true);toast(`Absensi PULANG ${s.name} tersimpan otomatis.`);
+     const pulangData={time:nowTime(),date:today(),timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+     updateLocalAttendance(`attendance/${today()}/${s.id}/pulang`,pulangData);
+     await queueOrWrite(`attendance/${today()}/${s.id}/pulang`,pulangData);
+     await logActivity("SISWA_PULANG", `${s.name} • ${s.className}`, s.id); beep(true);toast(`Absensi PULANG ${s.name} tersimpan otomatis.`);
    }
    renderDashboard();
    renderAttendance();
@@ -971,8 +1082,8 @@ async function saveTeacher(){
  const id=document.getElementById("teacherId").value||db.ref("teachers").push().key;
  const name=document.getElementById("teacherName").value.trim(),nip=document.getElementById("teacherNip").value.trim(),phone=document.getElementById("teacherPhone").value.trim(),code=document.getElementById("teacherCode").value.trim()||("GURU-"+id.slice(-8).toUpperCase());
  if(!name)return toast("Nama guru wajib diisi.");
- await db.ref("teachers/"+id).set({id,name,nip,phone,code,updatedAt:Date.now()});
- document.getElementById("teacherForm").classList.add("hidden");toast("Data guru tersimpan.");renderTeachers();
+ const wasEdit=!!document.getElementById("teacherId").value; await db.ref("teachers/"+id).set({id,name,nip,phone,code,updatedAt:Date.now()});
+ await logActivity(wasEdit?"EDIT_GURU":"TAMBAH_GURU", `${name}${nip?" • NIP "+nip:""}`, id); document.getElementById("teacherForm").classList.add("hidden");toast("Data guru tersimpan.");renderTeachers();
 }
 function renderTeachers(){
  const arr=Object.values(teachers).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"id"));
@@ -980,7 +1091,7 @@ function renderTeachers(){
  box.innerHTML=`<table><thead><tr><th>Nama</th><th>NIP</th><th>Kode</th><th>Aksi</th></tr></thead><tbody>${arr.map(g=>`<tr><td>${esc(g.name)}</td><td>${esc(g.nip||"-")}</td><td>${esc(g.code)}</td><td><button type="button" class="secondary" onclick="editTeacher('${g.id}')">Edit</button> <button type="button" class="secondary" onclick="printTeacherCode('${g.id}')">QR</button> <button type="button" class="secondary" onclick="deleteTeacher('${g.id}')">Hapus</button></td></tr>`).join("")||`<tr><td colspan="4">Belum ada data guru.</td></tr>`}</tbody></table>`;
 }
 window.editTeacher=id=>{const g=teachers[id];if(!g)return;document.getElementById("teacherForm").classList.remove("hidden");document.getElementById("teacherId").value=id;document.getElementById("teacherNip").value=g.nip||"";document.getElementById("teacherName").value=g.name||"";document.getElementById("teacherPhone").value=g.phone||"";document.getElementById("teacherCode").value=g.code||""};
-window.deleteTeacher=async id=>{if(currentRole!=="admin")return;if(confirm("Hapus guru?"))await db.ref("teachers/"+id).remove()};
+window.deleteTeacher=async id=>{if(currentRole!=="admin")return;const g=teachers[id];if(confirm("Hapus guru?")){await db.ref("teachers/"+id).remove();await logActivity("HAPUS_GURU", g?.name||id, id)}};
 window.printTeacherCode=id=>{const g=teachers[id];if(!g)return;const w=window.open("","_blank");w.document.write(`<html><head><title>Kartu Guru</title><style>body{text-align:center;font-family:Arial;padding:30px}.card{width:320px;margin:auto;border:1px solid #ddd;border-radius:16px;padding:22px}</style></head><body><div class="card"><h2>${esc(settings.schoolName)}</h2><h3>${esc(g.name)}</h3><p>NIP: ${esc(g.nip||"-")}</p><div id="qr"></div><b>${esc(g.code)}</b><p>Scan QR ini untuk absensi guru.</p><button onclick="window.print()">Cetak</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qr'),{text:${JSON.stringify(g.code)},width:190,height:190});<\/script></body></html>`);w.document.close()};
 function renderTeacherAttendance(){
  const d=document.getElementById("teacherDateFilter")?.value||today(),box=document.getElementById("teacherAttendanceTable");if(!box)return;
@@ -992,7 +1103,7 @@ function exportTeacherAttendance(){
  const head=["Tanggal","Masuk","Pulang","Nama","NIP","Petugas Masuk","Petugas Pulang"];const csv=[head,...rows.map(raw=>[d,raw.masuk?.time||"",raw.pulang?.time||"",raw.masuk?.name||"",raw.masuk?.nip||"",raw.masuk?.by||"",raw.pulang?.by||""])].map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`rekap-guru-${d}.csv`;a.click();URL.revokeObjectURL(url);
 }
 
-$("saveSettingsBtn").onclick=async()=>{settings.schoolName=$("schoolName").value.trim()||settings.schoolName;settings.lateAfter=$("lateAfter").value||"07:15";await db.ref("settings").set(settings);toast("Pengaturan disimpan")};
+$("saveSettingsBtn").onclick=async()=>{settings.schoolName=$("schoolName").value.trim()||settings.schoolName;settings.lateAfter=$("lateAfter").value||"07:15";await db.ref("settings").set(settings); await logActivity("UBAH_PENGATURAN", `${settings.schoolName} • Batas terlambat ${settings.lateAfter}`); toast("Pengaturan disimpan")};
 $("refreshDashboard").onclick=renderDashboard;
 /* =========================
    REKAP BULANAN v1.2 - TAMPILAN RAPI
