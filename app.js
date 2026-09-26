@@ -29,7 +29,7 @@ auth.onAuthStateChanged(async user => {
     const roleSnap = await db.ref("roles/" + user.uid).once("value");
     const roleData = roleSnap.val();
 
-    currentRole = roleData?.role === "petugas" ? "petugas" : "admin";
+    currentRole = roleData === "petugas" ? "petugas" : "admin";
     console.log("ROLE FIREBASE:", currentRole);
 
     document.querySelector('[data-tab="students"]').style.display =
