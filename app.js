@@ -51,7 +51,8 @@
     #appView .panel.active{animation:appPanelIn .2s ease-out}
     @keyframes appPanelIn{from{opacity:.6;transform:translateY(5px)}to{opacity:1;transform:none}}
     .app-mobile-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 2px 12px;position:sticky;top:0;z-index:30;background:rgba(244,247,246,.9);backdrop-filter:blur(14px)}
-    .app-brand{display:flex;align-items:center;gap:10px;min-width:0}.app-brand-icon{width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,var(--app-green),var(--app-green2));color:#fff;display:grid;place-items:center;font-size:19px;font-weight:900;box-shadow:0 8px 18px rgba(19,138,91,.22)}
+    .app-brand{display:flex;align-items:center;gap:10px;min-width:0}.app-brand-icon{width:46px;height:46px;border-radius:14px;object-fit:contain;background:#fff;padding:3px;border:1px solid #dfe9e4;box-shadow:0 8px 18px rgba(19,138,91,.14)}
+    .app-login-logo{width:92px;height:92px;object-fit:contain;display:block;margin:0 auto 12px;border-radius:20px;background:#fff;padding:5px;box-shadow:0 10px 24px rgba(20,45,34,.12);border:1px solid #e2ebe6}.app-desktop-brand{display:flex;align-items:center;gap:12px;padding:12px 4px}.app-desktop-brand img{width:48px;height:48px;object-fit:contain;border-radius:14px;background:#fff;padding:3px;border:1px solid #dfe9e4}.app-desktop-brand b{font-size:16px}.app-desktop-brand span{display:block;font-size:11px;color:var(--app-muted);margin-top:2px}
     .app-brand-title{font-weight:850;font-size:15px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.app-brand-sub{font-size:11px;color:var(--app-muted);margin-top:3px}
     .app-user-pill{display:flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--app-line);padding:8px 11px;border-radius:999px;font-size:11px;color:#52615a;max-width:44vw;overflow:hidden}.app-user-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .app-mobile-nav{display:none}
@@ -74,7 +75,7 @@
       #appView table{border-radius:14px!important}
       #appView h1{font-size:22px!important} #appView h2{font-size:19px!important} #appView h3{font-size:16px!important}
     }
-    @media(min-width:801px){.app-mobile-header{display:none}.app-more-sheet{display:none!important}}
+    @media(min-width:801px){.app-mobile-header{display:flex}.app-mobile-nav{display:none!important}.app-more-sheet{display:none!important}}
     @media(max-width:800px){
       body:after{content:"";position:fixed;inset:auto 0 0;height:2px;background:linear-gradient(90deg,#0b6847,#77c7a5,#0b6847);z-index:100}
       #appView .stat-card,#appView .card,#appView .dashboard-card{border-radius:18px!important}
@@ -94,6 +95,28 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&
 const toast=m=>{const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)};
 const key=s=>String(s).replace(/[.#$/[\]]/g,"_");
 
+function installMtsBranding(){
+  if(!document.getElementById("mtsFavicon")){
+    const f=document.createElement("link");f.id="mtsFavicon";f.rel="icon";f.type="image/png";f.href="favicon-32.png";document.head.appendChild(f);
+  }
+  if(!document.querySelector('link[rel="apple-touch-icon"]')){
+    const a=document.createElement("link");a.rel="apple-touch-icon";a.href="apple-touch-icon.png";document.head.appendChild(a);
+  }
+  if(!document.querySelector('link[rel="manifest"]')){
+    const m=document.createElement("link");m.rel="manifest";m.href="manifest.json";document.head.appendChild(m);
+  }
+  if(!document.querySelector('meta[name="theme-color"]')){
+    const t=document.createElement("meta");t.name="theme-color";t.content="#1f5d35";document.head.appendChild(t);
+  }
+  const login=document.getElementById("loginView");
+  if(login && !document.getElementById("mtsLoginLogo")){
+    const logo=document.createElement("img");logo.id="mtsLoginLogo";logo.className="app-login-logo";logo.src="logo.png";logo.alt="Logo MTs Miftahul Ulum";
+    const target=login.querySelector("form,.login-card,#loginView>div") || login.firstElementChild;
+    if(target) target.insertBefore(logo,target.firstChild);
+  }
+}
+installMtsBranding();
+
 function showTab(id){
  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
@@ -103,7 +126,7 @@ function showTab(id){
 function initAppStyleUI(){
   const app=$("appView"); if(!app || document.getElementById("appMobileNav")) return;
   const header=document.createElement("div"); header.className="app-mobile-header";
-  header.innerHTML=`<div class="app-brand"><div class="app-brand-icon">✓</div><div><div class="app-brand-title">Absensi MTs</div><div class="app-brand-sub">Miftahul Ulum Pronojiwo</div></div></div><div class="app-user-pill">👤 <span id="appStyleUser">${esc(window.firebase?.auth?.currentUser?.email||"")}</span></div>`;
+  header.innerHTML=`<div class="app-brand"><img class="app-brand-icon" src="logo.png" alt="Logo MTs Miftahul Ulum"><div><div class="app-brand-title">Absensi MTs</div><div class="app-brand-sub">Miftahul Ulum Pronojiwo</div></div></div><div class="app-user-pill">👤 <span id="appStyleUser">${esc(window.firebase?.auth?.currentUser?.email||"")}</span></div>`;
   app.insertBefore(header,app.firstChild);
   const tabContainer=document.querySelector('[data-tab="dashboard"]')?.parentElement;
   if(tabContainer && !tabContainer.classList.contains("app-desktop-tabs")) tabContainer.classList.add("app-desktop-tabs");
@@ -958,14 +981,7 @@ function renderTeachers(){
 }
 window.editTeacher=id=>{const g=teachers[id];if(!g)return;document.getElementById("teacherForm").classList.remove("hidden");document.getElementById("teacherId").value=id;document.getElementById("teacherNip").value=g.nip||"";document.getElementById("teacherName").value=g.name||"";document.getElementById("teacherPhone").value=g.phone||"";document.getElementById("teacherCode").value=g.code||""};
 window.deleteTeacher=async id=>{if(currentRole!=="admin")return;if(confirm("Hapus guru?"))await db.ref("teachers/"+id).remove()};
-window.printTeacherCode=id=>{
- const g=teachers[id]; if(!g)return;
- const w=window.open("","_blank");
- w.document.write(`<html><head><title>Kartu Guru</title><style>
- *{box-sizing:border-box}body{margin:0;background:#f3f6f8;font-family:Arial,sans-serif;text-align:center;color:#111827;padding:24px} .card{width:360px;max-width:92vw;margin:0 auto;background:#fff;border:1px solid #d9e1e7;border-radius:20px;padding:26px 24px;box-shadow:0 10px 30px rgba(0,0,0,.08);transform:none} .school{font-size:21px;font-weight:800;line-height:1.2;margin:0 auto 16px;max-width:300px} .name{font-size:20px;font-weight:700;margin:8px 0} .nip{font-size:15px;margin:0 0 18px;color:#4b5563} #qr{width:210px;height:210px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center} #qr img{display:block;width:190px!important;height:190px!important;margin:auto!important} .code{font-size:15px;font-weight:800;letter-spacing:1.5px;margin:4px 0 14px;word-break:break-all} .hint{font-size:14px;color:#6b7280;margin:0 0 18px}button{padding:10px 22px;border:0;border-radius:10px;background:#111827;color:#fff;font-size:14px} @media print{body{background:#fff;padding:0}.card{box-shadow:none;border:1px solid #aaa;width:360px;margin:10mm auto}button{display:none}}
-</style></head><body><div class="card"><div class="school">${esc(settings.schoolName)}</div><div class="name">${esc(g.name)}</div><div class="nip">NIP: ${esc(g.nip||"-")}</div><div id="qr"></div><div class="code">${esc(g.code)}</div><p class="hint">Scan QR ini untuk absensi guru.</p><button onclick="window.print()">Cetak</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qr'),{text:${JSON.stringify(g.code)},width:190,height:190,correctLevel:QRCode.CorrectLevel.M});<\/script></body></html>`);
- w.document.close();
-};
+window.printTeacherCode=id=>{const g=teachers[id];if(!g)return;const w=window.open("","_blank");w.document.write(`<html><head><title>Kartu Guru</title><style>body{text-align:center;font-family:Arial;padding:30px}.card{width:320px;margin:auto;border:1px solid #ddd;border-radius:16px;padding:22px}</style></head><body><div class="card"><h2>${esc(settings.schoolName)}</h2><h3>${esc(g.name)}</h3><p>NIP: ${esc(g.nip||"-")}</p><div id="qr"></div><b>${esc(g.code)}</b><p>Scan QR ini untuk absensi guru.</p><button onclick="window.print()">Cetak</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qr'),{text:${JSON.stringify(g.code)},width:190,height:190});<\/script></body></html>`);w.document.close()};
 function renderTeacherAttendance(){
  const d=document.getElementById("teacherDateFilter")?.value||today(),box=document.getElementById("teacherAttendanceTable");if(!box)return;
  const rows=Object.values(attendance[d]||{}).filter(raw=>raw?.masuk?.type==="guru").map(raw=>({masuk:raw.masuk,pulang:raw.pulang})).sort((a,b)=>(a.masuk?.time||"").localeCompare(b.masuk?.time||""));
