@@ -1371,3 +1371,243 @@ $("refreshDashboard").onclick=renderDashboard;
   setTimeout(ensureRecentActivityUI,700);
   setInterval(()=>{if(!$('appView')||$('appView').classList.contains('hidden'))return; if($('recentActivityBox'))renderRecentActivity();},15000);
 })();
+
+
+/* =========================================================
+   v2.7 - PUSAT LAPORAN & REKAP PREMIUM
+   Tidak mengubah role Admin/Petugas atau struktur Firebase.
+   ========================================================= */
+(function initPremiumReports(){
+  if(window.__premiumReportsV27) return;
+  window.__premiumReportsV27 = true;
+
+  const safe = v => String(v ?? "");
+  const pad = n => String(n).padStart(2,"0");
+  const dateObj = s => {
+    const [y,m,d] = String(s||"").split("-").map(Number);
+    return (y&&m&&d) ? new Date(y,m-1,d) : null;
+  };
+  const addDays = (s,n) => {
+    const d=dateObj(s); if(!d) return s;
+    d.setDate(d.getDate()+n);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  };
+  const daysBetween = (a,b) => {
+    const out=[]; let cur=a, guard=0;
+    while(cur<=b && guard<366){ out.push(cur); cur=addDays(cur,1); guard++; }
+    return out;
+  };
+  const statusLabel = s => s || "-";
+
+  function getStudentById(id){ return students?.[id] || null; }
+  function getTeacherById(id){
+    const raw=String(id||"").replace(/^guru_/,"");
+    return teachers?.[raw] || teachers?.[id] || null;
+  }
+
+  function collectRows(){
+    const start=$("reportStart")?.value || today();
+    const end=$("reportEnd")?.value || start;
+    const type=$("reportType")?.value || "semua";
+    const cls=$("reportClass")?.value || "";
+    const status=$("reportStatus")?.value || "";
+    const person=$("reportPerson")?.value || "";
+    const rows=[];
+    if(start>end) return rows;
+
+    for(const d of daysBetween(start,end)){
+      const day=attendance?.[d] || {};
+      for(const [id,entry] of Object.entries(day)){
+        const m=getMasuk(entry);
+        if(!m) continue;
+        const isGuru=m.type==="guru" || String(id).startsWith("guru_");
+        const personId=isGuru ? String(id).replace(/^guru_/,"") : String(id);
+        const s=isGuru ? getTeacherById(personId) : getStudentById(personId);
+        const name=m.name || s?.name || personId;
+        const nisnip=isGuru ? (m.nip || s?.nip || "") : (m.nis || s?.nis || "");
+        const className=isGuru ? "GURU" : (m.className || s?.className || "");
+        const rowType=isGuru ? "guru" : "siswa";
+        if(type!=="semua" && type!==rowType) continue;
+        if(cls && className!==cls) continue;
+        if(status && m.status!==status) continue;
+        if(person && personId!==person) continue;
+        rows.push({
+          date:d,type:rowType,id:personId,name,nisnip,className,
+          status:m.status||"",masuk:m.time||"",pulang:entry?.pulang?.time||"",
+          by:m.by||entry?.pulang?.by||""
+        });
+      }
+    }
+    rows.sort((a,b)=>(a.date+a.masuk).localeCompare(b.date+b.masuk));
+    return rows;
+  }
+
+  function refreshReportPeople(){
+    const sel=$("reportPerson"); if(!sel) return;
+    const current=sel.value;
+    const type=$("reportType")?.value||"semua";
+    let list=[];
+    if(type!=="guru"){
+      list=Object.values(students||{}).map(s=>({id:s.id,name:s.name,meta:`${s.nis||"-"} • ${s.className||"-"}`}));
+    }
+    if(type!=="siswa"){
+      list=list.concat(Object.values(teachers||{}).map(t=>({id:t.id,name:t.name,meta:`${t.nip||"-"} • GURU`})));
+    }
+    list.sort((a,b)=>String(a.name).localeCompare(String(b.name),"id"));
+    sel.innerHTML='<option value="">Semua</option>'+list.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — ${esc(p.meta)}</option>`).join("");
+    if([...sel.options].some(o=>o.value===current)) sel.value=current;
+  }
+
+  function refreshReportClasses(){
+    const sel=$("reportClass"); if(!sel) return;
+    const cur=sel.value;
+    const names=[...new Set(Object.values(classes||{}).map(c=>c.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"id"));
+    sel.innerHTML='<option value="">Semua Kelas</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+  }
+
+  function renderReport(){
+    const box=$("reportResult"); if(!box) return;
+    const rows=collectRows();
+    const counts={total:rows.length,hadir:0,terlambat:0,izin:0,sakit:0,alpa:0,pulang:0};
+    rows.forEach(r=>{
+      const k=String(r.status||"").toLowerCase();
+      if(k==="hadir") counts.hadir++;
+      else if(k==="terlambat") counts.terlambat++;
+      else if(k==="izin") counts.izin++;
+      else if(k==="sakit") counts.sakit++;
+      else if(k==="alpa") counts.alpa++;
+      if(r.pulang) counts.pulang++;
+    });
+    $("reportSummary").innerHTML=[
+      ["Total",counts.total],["Hadir",counts.hadir],["Terlambat",counts.terlambat],
+      ["Izin",counts.izin],["Sakit",counts.sakit],["Alpa",counts.alpa],["Pulang",counts.pulang]
+    ].map(x=>`<div class="report-stat"><b>${x[1]}</b><span>${x[0]}</span></div>`).join("");
+
+    box.innerHTML=rows.length?`<div class="report-table-wrap"><table class="report-table"><thead><tr>
+      <th>No</th><th>Tanggal</th><th>Jenis</th><th>Nama</th><th>NIS/NIP</th><th>Kelas</th><th>Status</th><th>Masuk</th><th>Pulang</th><th>Petugas</th>
+    </tr></thead><tbody>${rows.map((r,i)=>`<tr>
+      <td>${i+1}</td><td>${esc(r.date)}</td><td>${r.type==="guru"?"Guru":"Siswa"}</td><td><b>${esc(r.name)}</b></td>
+      <td>${esc(r.nisnip||"-")}</td><td>${esc(r.className||"-")}</td><td>${esc(statusLabel(r.status))}</td>
+      <td>${esc(r.masuk||"-")}</td><td>${esc(r.pulang||"-")}</td><td>${esc(r.by||"-")}</td>
+    </tr>`).join("")}</tbody></table></div>`:
+    '<div class="report-empty">Tidak ada data sesuai filter.</div>';
+  }
+
+  function csvEscape(v){ return `"${safe(v).replaceAll('"','""')}"`; }
+  function exportReport(){
+    const rows=collectRows();
+    const head=["Tanggal","Jenis","Nama","NIS/NIP","Kelas","Status","Masuk","Pulang","Petugas"];
+    const csv=[head,...rows.map(r=>[r.date,r.type==="guru"?"Guru":"Siswa",r.name,r.nisnip,r.className,r.status,r.masuk,r.pulang,r.by])]
+      .map(r=>r.map(csvEscape).join(",")).join("\n");
+    const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download=`laporan-absensi-${$("reportStart")?.value||today()}-${$("reportEnd")?.value||today()}.csv`;
+    a.click();URL.revokeObjectURL(url);
+    if(typeof logActivity==="function") logActivity("EXPORT_LAPORAN","Export laporan absensi CSV");
+  }
+
+  function printReport(){
+    const rows=collectRows();
+    const w=window.open("","_blank");
+    if(!w){ toast("Izinkan pop-up untuk mencetak laporan."); return; }
+    const logo="logo.png";
+    const school=esc(settings?.schoolName||"MTs Miftahul Ulum");
+    const start=esc($("reportStart")?.value||today()), end=esc($("reportEnd")?.value||start);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Laporan Absensi</title>
+      <style>
+      @page{size:A4 landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#111;font-size:10px}
+      .head{display:flex;align-items:center;gap:12px;border-bottom:2px solid #166b4c;padding-bottom:8px;margin-bottom:10px}
+      .head img{width:55px;height:55px;object-fit:contain}.head h1{margin:0;font-size:18px}.head p{margin:3px 0;color:#555}
+      .meta{margin:8px 0 12px;font-size:10px}table{width:100%;border-collapse:collapse}
+      th,td{border:1px solid #aaa;padding:5px;text-align:center}th{background:#eaf3ee}
+      td:nth-child(4){text-align:left} .foot{margin-top:12px;color:#555;font-size:9px}
+      </style></head><body>
+      <div class="head"><img src="${logo}"><div><h1>${school}</h1><p>Laporan Absensi Digital</p></div></div>
+      <div class="meta">Periode: ${start} s.d. ${end} &nbsp; | &nbsp; Data: ${rows.length} baris</div>
+      <table><thead><tr><th>No</th><th>Tanggal</th><th>Jenis</th><th>Nama</th><th>NIS/NIP</th><th>Kelas</th><th>Status</th><th>Masuk</th><th>Pulang</th><th>Petugas</th></tr></thead>
+      <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.date)}</td><td>${r.type==="guru"?"Guru":"Siswa"}</td><td>${esc(r.name)}</td><td>${esc(r.nisnip||"-")}</td><td>${esc(r.className||"-")}</td><td>${esc(r.status||"-")}</td><td>${esc(r.masuk||"-")}</td><td>${esc(r.pulang||"-")}</td><td>${esc(r.by||"-")}</td></tr>`).join("")}</tbody></table>
+      <div class="foot">Dicetak dari Sistem Absensi Digital • ${esc(new Date().toLocaleString("id-ID"))}</div>
+      <script>window.onload=()=>window.print();<\/script></body></html>`);
+    w.document.close();
+    if(typeof logActivity==="function") logActivity("CETAK_LAPORAN","Cetak/PDF laporan absensi");
+  }
+
+  function injectStyle(){
+    if($("premiumReportStyle")) return;
+    const st=document.createElement("style");st.id="premiumReportStyle";
+    st.textContent=`
+      #premiumReportsBox{margin-top:24px;padding:20px;border:1px solid #dfe8e3;border-radius:18px;background:linear-gradient(180deg,#fff,#f8fbf9);box-shadow:0 8px 26px rgba(15,23,42,.06)}
+      #premiumReportsBox .report-head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+      #premiumReportsBox .report-title{margin:0;font-size:20px;font-weight:800}.report-sub{margin:4px 0 0;color:#64748b;font-size:13px}
+      #premiumReportsBox .report-filter{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:10px;padding:14px;border-radius:14px;background:#f1f6f3;border:1px solid #e1ebe6}
+      #premiumReportsBox .report-filter label{font-size:11px;font-weight:700;color:#486258}.report-filter input,.report-filter select{display:block;width:100%;margin-top:5px}
+      #premiumReportsBox .report-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+      #premiumReportsBox .report-summary{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin:14px 0}
+      #premiumReportsBox .report-stat{padding:12px 8px;background:#fff;border:1px solid #e3ebe7;border-radius:12px;text-align:center}
+      #premiumReportsBox .report-stat b{display:block;font-size:19px}.report-stat span{font-size:10px;color:#64748b}
+      #premiumReportsBox .report-table-wrap{overflow:auto;border:1px solid #e3ebe7;border-radius:12px;background:#fff}
+      #premiumReportsBox .report-table{width:100%;min-width:980px;border-collapse:collapse;font-size:11px}
+      #premiumReportsBox .report-table th,#premiumReportsBox .report-table td{padding:9px 8px;border-bottom:1px solid #edf2ef;white-space:nowrap;text-align:center}
+      #premiumReportsBox .report-table th{background:#edf5f1;color:#315447}
+      #premiumReportsBox .report-table td:nth-child(4){text-align:left;min-width:180px}
+      #premiumReportsBox .report-empty{padding:28px;text-align:center;color:#64748b;background:#fff;border:1px dashed #d7e3dd;border-radius:12px}
+      @media(max-width:900px){#premiumReportsBox .report-filter{grid-template-columns:repeat(2,minmax(130px,1fr))}#premiumReportsBox .report-summary{grid-template-columns:repeat(4,1fr)}}
+      @media(max-width:600px){#premiumReportsBox{padding:14px}.report-filter{grid-template-columns:1fr!important}.report-summary{grid-template-columns:repeat(2,1fr)!important}.report-title{font-size:18px}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  function ensureUI(){
+    if($("premiumReportsBox")) return;
+    const anchor=$("attendanceTable") || $("monthlyRecapBox");
+    if(!anchor || !anchor.parentNode) return;
+    injectStyle();
+    const box=document.createElement("section");box.id="premiumReportsBox";
+    box.innerHTML=`
+      <div class="report-head"><div><h3 class="report-title">📑 Pusat Laporan & Rekap</h3>
+      <p class="report-sub">Filter absensi siswa dan guru, lalu export CSV atau cetak sebagai PDF A4.</p></div></div>
+      <div class="report-filter">
+        <label>Mulai<input type="date" id="reportStart" value="${today()}"></label>
+        <label>Sampai<input type="date" id="reportEnd" value="${today()}"></label>
+        <label>Jenis<select id="reportType"><option value="semua">Siswa + Guru</option><option value="siswa">Siswa</option><option value="guru">Guru</option></select></label>
+        <label>Kelas<select id="reportClass"><option value="">Semua Kelas</option></select></label>
+        <label>Status<select id="reportStatus"><option value="">Semua Status</option><option>Hadir</option><option>Terlambat</option><option>Izin</option><option>Sakit</option><option>Alpa</option></select></label>
+        <label>Nama<select id="reportPerson"><option value="">Semua</option></select></label>
+      </div>
+      <div class="report-actions" style="margin-top:10px">
+        <button type="button" class="primary" id="reportShowBtn">Tampilkan</button>
+        <button type="button" class="secondary" id="reportExportBtn">Export CSV</button>
+        <button type="button" class="secondary" id="reportPrintBtn">Cetak / PDF</button>
+      </div>
+      <div id="reportSummary" class="report-summary"></div>
+      <div id="reportResult"></div>`;
+    anchor.parentNode.insertBefore(box,anchor.nextSibling);
+
+    $("reportShowBtn").onclick=renderReport;
+    $("reportExportBtn").onclick=exportReport;
+    $("reportPrintBtn").onclick=printReport;
+    $("reportType").onchange=()=>{refreshReportPeople();renderReport();};
+    $("reportClass").onchange=renderReport;
+    $("reportStatus").onchange=renderReport;
+    $("reportPerson").onchange=renderReport;
+    $("reportStart").onchange=renderReport;
+    $("reportEnd").onchange=renderReport;
+    refreshReportClasses();refreshReportPeople();renderReport();
+  }
+
+  const oldRA=window.renderAttendance;
+  window.renderAttendance=function(){
+    if(typeof oldRA==="function") oldRA();
+    setTimeout(()=>{ensureUI();refreshReportClasses();refreshReportPeople();renderReport();},0);
+  };
+  const oldRCO=window.refreshClassOptions;
+  if(typeof oldRCO==="function"){
+    window.refreshClassOptions=function(){
+      oldRCO();
+      refreshReportClasses();
+      refreshReportPeople();
+    };
+  }
+  setTimeout(ensureUI,900);
+})();
