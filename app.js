@@ -247,11 +247,22 @@ function initAppStyleUI(){
   nav.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{showTab(b.dataset.go);sheet.classList.remove("open");sync();window.scrollTo({top:0,behavior:"smooth"})});
   document.getElementById("appMoreBtn").onclick=()=>{
     const grid=document.getElementById("appMoreGrid");
-    grid.innerHTML="";
-    document.querySelectorAll('.tab').forEach(t=>{
-      if(getComputedStyle(t).display==='none' && t.dataset.tab!=='students' && t.dataset.tab!=='classes' && t.dataset.tab!=='settings' && t.dataset.tab!=='teachers') return;
-      if(getComputedStyle(t).display==='none') return;
-      const b=document.createElement("button"); b.className="app-more-btn"; b.textContent=t.textContent.trim(); b.onclick=()=>{showTab(t.dataset.tab);sheet.classList.remove("open");sync();window.scrollTo({top:0,behavior:"smooth"})}; grid.appendChild(b);
+    const items=currentRole==="admin"?[
+      ["👨‍🎓","Data Siswa","Kelola data siswa","students"],
+      ["🏫","Kelas","Kelola kelas","classes"],
+      ["📊","Rekap & Laporan","Lihat rekap absensi","attendance"],
+      ["👨‍🏫","Data Guru","Kelola guru & kartu QR","teachers"],
+      ["💾","Backup & Restore","Cadangkan dan pulihkan data","settings"]
+    ]:[
+      ["📋","Absensi","Lihat data kehadiran","attendance"],
+      ["🔄","Refresh Data","Muat data terbaru","__refresh"]
+    ];
+    grid.innerHTML=items.map(([ico,title,desc,target])=>`<button type="button" class="app-more-item" data-target="${target}"><span class="app-more-ico">${ico}</span><span class="app-more-copy"><b>${title}</b><small>${desc}</small></span><span class="app-more-arrow">›</span></button>`).join("");
+    grid.querySelectorAll('.app-more-item').forEach(b=>b.onclick=()=>{
+      const target=b.dataset.target;
+      if(target==='__refresh'){ loadAll(); toast('Data berhasil diperbarui.'); sheet.classList.remove('open'); return; }
+      if(target==='teachers' && currentRole!=="admin") return;
+      showTab(target); sheet.classList.remove('open'); sync(); window.scrollTo({top:0,behavior:'smooth'});
     });
     sheet.classList.add("open");
   };
@@ -1644,6 +1655,26 @@ $("refreshDashboard").onclick=renderDashboard;
  `; document.head.appendChild(s);
 })();
 
+
+
+/* FINAL MOBILE MENU + PETUGAS POLISH */
+(function(){
+  const st=document.createElement('style');
+  st.id='finalMobilePolish';
+  st.textContent=`
+    .app-more-card{padding:18px 16px 20px!important;border-radius:28px 28px 0 0!important;background:linear-gradient(180deg,#ffffff,#f7faf8)!important}
+    .app-more-head{font-size:19px!important;font-weight:900!important;padding:2px 2px 14px!important}
+    .app-more-grid{display:grid!important;grid-template-columns:1fr!important;gap:9px!important}
+    .app-more-item{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #e1ebe6;background:#fff;border-radius:17px;padding:12px 13px;box-shadow:0 5px 16px rgba(20,45,34,.05);cursor:pointer}
+    .app-more-item:active{transform:scale(.985);background:#f1f8f4}
+    .app-more-ico{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:#eef7f2;font-size:20px;flex:0 0 40px}
+    .app-more-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+    .app-more-copy b{font-size:13px;color:#12251d}.app-more-copy small{font-size:10px;color:#81908a}
+    .app-more-arrow{font-size:25px;color:#9aa9a3}
+    .app-user-pill{font-size:11px!important;font-weight:800!important}
+    @media(max-width:650px){.app-mobile-header{padding:12px 13px!important}.app-brand-title{font-size:16px!important}.app-brand-sub{font-size:10px!important}.app-user-pill{padding:8px 10px!important}}
+  `; document.head.appendChild(st);
+})();
 
 /* V3.19 — SCANNER OTOMATIS STABIL */
 async function startScannerAutoV319(){
