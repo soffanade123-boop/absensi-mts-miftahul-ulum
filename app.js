@@ -1658,3 +1658,67 @@ $("refreshDashboard").onclick=renderDashboard;
   }
   setTimeout(ensureUI,900);
 })();
+
+/* =========================================================
+   V3.8 MOBILE NO-SWIPE FIX
+   Semua konten HP dipaksa muat dalam lebar layar.
+   Tidak mengubah Firebase / role / data / scanner.
+   ========================================================= */
+(function initMobileNoSwipeV38(){
+  if(document.getElementById('mobileNoSwipeV38')) return;
+  const st=document.createElement('style');
+  st.id='mobileNoSwipeV38';
+  st.textContent=`
+    html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
+    *,*::before,*::after{box-sizing:border-box}
+    @media(max-width:800px){
+      body,#appView,#appView>*{max-width:100%!important}
+      #appView{width:100%!important;overflow-x:hidden!important;padding-left:8px!important;padding-right:8px!important}
+      .panel,.card,.section,.box,#premiumReportsBox,#monthlyRecapBox,#classRecapBox,#recentActivityBox,#dashboardExtraStats{width:100%!important;max-width:100%!important;overflow:hidden!important}
+
+      /* Jangan ada elemen lebar yang memaksa halaman bergeser */
+      .row,.actions,.button-row,.report-actions,.class-actions,.class-filter,.monthly-filter,.teacher-filter,
+      .dash-trend-head,.class-head,.report-head{max-width:100%!important;min-width:0!important}
+      .row>* ,.actions>*{min-width:0!important;max-width:100%!important}
+      input,select,textarea,button{max-width:100%!important}
+
+      /* Semua tabel mengikuti layar HP, bukan ukuran desktop */
+      .table-wrap,.recent-wrap,.class-table-wrap,.report-table-wrap,.dash-class-table,
+      #attendanceTable,#studentsTable,#classesTable,#teachersTable,#teacherAttendanceTable,
+      #monthlyRecapBox .monthly-table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+
+      table,
+      .recent-table,.class-table,.report-table,
+      #monthlyRecapBox .monthly-table,
+      #dashboardExtraStats table{display:table!important;width:100%!important;min-width:0!important;max-width:100%!important;
+        table-layout:fixed!important;border-collapse:collapse!important;white-space:normal!important}
+      table th,table td{min-width:0!important;max-width:100%!important;white-space:normal!important;
+        overflow-wrap:anywhere!important;word-break:break-word!important;padding:6px 3px!important;font-size:10px!important}
+      table th{font-size:9px!important}
+
+      /* Tabel laporan yang sebelumnya min-width:980px */
+      #premiumReportsBox .report-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
+      #premiumReportsBox .report-table th,#premiumReportsBox .report-table td{white-space:normal!important;min-width:0!important;padding:5px 2px!important;font-size:9px!important}
+      #premiumReportsBox .report-table td:nth-child(4){min-width:0!important}
+      #monthlyRecapBox .monthly-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
+      #monthlyRecapBox .monthly-table .monthly-name{min-width:0!important}
+      .class-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
+      .recent-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
+      .dash-class-table table{min-width:0!important;width:100%!important;table-layout:fixed!important}
+
+      /* Kartu statistik tidak boleh melebar */
+      .dash-stat-grid,.dash-grid,.dashboard-grid,.stats-grid,.report-summary,.monthly-summary,.class-summary{
+        width:100%!important;max-width:100%!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      .dash-stat,.stat-card,.dash-card,.report-stat,.class-card{min-width:0!important;max-width:100%!important}
+
+      /* Scanner */
+      #reader,.scan-premium{width:100%!important;max-width:100%!important;overflow:hidden!important}
+      #reader video{width:100%!important;max-width:100%!important;height:auto!important}
+
+      /* Hilangkan sumber overflow umum */
+      [style*="min-width"],[style*="width:"]{max-width:100%!important}
+      img,video,canvas,svg{max-width:100%!important}
+    }
+  `;
+  document.head.appendChild(st);
+})();
