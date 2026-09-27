@@ -1677,3 +1677,66 @@ $("refreshDashboard").onclick=renderDashboard;
   `;
   document.head.appendChild(style);
 })();
+
+/* =========================================================
+   V3.14 — MOBILE NO HORIZONTAL SCROLL
+   Menjaga scanner otomatis V3.13 dan hanya memperbaiki layout HP.
+   ========================================================= */
+(function(){
+  if(document.getElementById('v314MobileFix')) return;
+  const st=document.createElement('style');
+  st.id='v314MobileFix';
+  st.textContent=`
+    @media(max-width:800px){
+      html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
+      body{margin:0!important;padding-left:0!important;padding-right:0!important}
+      #appView{width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:hidden!important;padding-left:10px!important;padding-right:10px!important}
+      #appView *{max-width:100%}
+      #appView .panel{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+      .app-mobile-header{width:100%!important;max-width:100%!important;overflow:hidden!important}
+      .app-desktop-tabs,.tabs{display:none!important}
+      #appMobileNav{left:7px!important;right:7px!important;width:auto!important;max-width:none!important;overflow:hidden!important;grid-template-columns:1fr 1.35fr 1fr 1fr 1fr!important}
+      #appMobileNav .app-nav-btn{min-width:0!important;width:100%!important;max-width:100%!important;overflow:hidden!important}
+      #appMobileNav .app-nav-btn[data-go="scanner"]{min-width:0!important}
+      input,select,textarea,button{max-width:100%!important}
+      .grid-form,.dash-stat-grid,.dash-grid,.dashboard-grid,.stats-grid,.class-summary,.report-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important;min-width:0!important}
+      .grid-form{grid-template-columns:1fr!important}
+      .dash-stat,.stat-card,.dash-card,.class-card{min-width:0!important;overflow:hidden!important}
+      .dash-trend-head{min-width:0!important}
+      .dash-trend-chart{width:100%!important;max-width:100%!important;gap:3px!important;overflow:hidden!important}
+      .dash-bar-col{min-width:0!important}
+      .dash-bar{max-width:28px!important}
+      /* Dashboard: tabel tidak membuat halaman melebar */
+      .dash-class-wrap,.dash-class-table{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+      .dash-class-table table{width:100%!important;min-width:0!important;table-layout:fixed!important;white-space:normal!important}
+      .dash-class-table th,.dash-class-table td{padding:6px 3px!important;font-size:10px!important;word-break:break-word!important;overflow-wrap:anywhere!important}
+      /* Semua tabel fitur */
+      .table-wrap,.recent-wrap,.class-table-wrap,.report-table-wrap,.monthly-table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+      .table-wrap table,.recent-table,.class-table,.report-table,.monthly-table{width:100%!important;min-width:0!important;table-layout:fixed!important;white-space:normal!important}
+      .table-wrap th,.table-wrap td,.recent-table th,.recent-table td,.class-table th,.class-table td,.report-table th,.report-table td,.monthly-table th,.monthly-table td{font-size:10px!important;padding:6px 3px!important;white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important}
+      .monthly-table .monthly-name,.report-table td:nth-child(4){min-width:0!important}
+      #monthlyRecapBox .monthly-table{min-width:0!important}
+      #classRecapBox .class-table{min-width:0!important}
+      #recentActivityBox .recent-table{min-width:0!important}
+      #premiumReportsBox .report-table{min-width:0!important}
+      /* Scanner */
+      #scanner{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+      #scanPremiumBox,.scan-premium{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+      #reader{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+      #reader video{width:100%!important;max-width:100%!important;height:auto!important}
+      .scan-modes{grid-template-columns:1fr 1fr!important;min-width:0!important}
+      .scan-mode{min-width:0!important;overflow:hidden!important;white-space:normal!important}
+      /* Form/button */
+      .button-row,.actions,.class-actions,.report-actions{width:100%!important;max-width:100%!important;min-width:0!important;flex-wrap:wrap!important}
+      .button-row button,.actions button,.class-actions button,.report-actions button{max-width:100%!important;min-width:0!important}
+    }
+    @media(max-width:380px){
+      #appView{padding-left:7px!important;padding-right:7px!important}
+      #appMobileNav{left:4px!important;right:4px!important}
+      #appMobileNav .app-nav-btn{font-size:9px!important;padding-left:2px!important;padding-right:2px!important}
+      #appMobileNav .app-nav-btn[data-go="scanner"]{font-size:11px!important}
+      .dash-stat-grid,.dash-grid,.dashboard-grid,.stats-grid{gap:6px!important}
+    }
+  `;
+  document.head.appendChild(st);
+})();
