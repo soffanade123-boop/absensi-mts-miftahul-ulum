@@ -221,12 +221,8 @@ installMtsBranding();
 function showTab(id){
  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
- $(id).classList.add("active");
- const activeTab=document.querySelector(`[data-tab="${id}"]`);
- if(activeTab) activeTab.classList.add("active");
+ $(id).classList.add("active");document.querySelector(`[data-tab="${id}"]`).classList.add("active");
  if(id==="dashboard") renderDashboard(); if(id==="students") renderStudents(); if(id==="classes") renderClasses(); if(id==="attendance") renderAttendance(); if(id==="teachers") { ensureTeacherUI(); renderTeachers(); renderTeacherAttendance(); }
- if(id==="scanner") setTimeout(()=>startScannerAuto(),80);
- else setTimeout(()=>stopScannerAuto(),0);
 }
 function initAppStyleUI(){
   const app=$("appView"); if(!app || document.getElementById("appMobileNav")) return;
@@ -895,49 +891,6 @@ function beep(ok=true){
  if(navigator.vibrate)navigator.vibrate(ok?[80]:[180,80,180]);
 }
 ensureScanModeUI();
-
-/* =========================================================
-   V3.7 SCANNER OTOMATIS
-   Kamera otomatis saat menu Scanner dibuka.
-   Tombol start/stop/simpan disembunyikan.
-   Logika Firebase + role + auto-save tetap sama.
-   ========================================================= */
-async function startScannerAuto(){
-  if(scanner) return;
-  const reader=document.getElementById("reader");
-  if(!reader) return;
-  try{
-    ensureScanModeUI();
-    scanner=new Html5Qrcode("reader");
-    await scanner.start(
-      {facingMode:"environment"},
-      {fps:15,qrbox:{width:250,height:250}},
-      onScan
-    );
-    $("scanMsg").textContent=`Kamera aktif — mode ${scanMode.toUpperCase()}.`;
-  }catch(e){
-    console.error("Scanner otomatis:",e);
-    try{ if(scanner){await scanner.clear();} }catch{}
-    scanner=null;
-    $("scanMsg").textContent="Kamera gagal dibuka. Pastikan HTTPS dan izin kamera aktif.";
-  }
-}
-
-async function stopScannerAuto(){
-  if(!scanner) return;
-  try{await scanner.stop()}catch{}
-  try{scanner.clear()}catch{}
-  scanner=null;
-}
-
-(function hideScannerButtons(){
-  const st=document.createElement("style");
-  st.id="scannerAutoV37Style";
-  st.textContent=`
-    #startScanBtn,#stopScanBtn,#saveScanBtn{display:none!important}
-  `;
-  document.head.appendChild(st);
-})();
 
 $("startScanBtn").onclick=async()=>{
  ensureScanModeUI();
@@ -1660,65 +1613,218 @@ $("refreshDashboard").onclick=renderDashboard;
 })();
 
 /* =========================================================
-   V3.8 MOBILE NO-SWIPE FIX
-   Semua konten HP dipaksa muat dalam lebar layar.
-   Tidak mengubah Firebase / role / data / scanner.
+   V3.9 DASHBOARD MOBILE FIX
+   Khusus dashboard: seluruh isi mengikuti lebar HP.
+   Tidak mengubah Firebase, data, scanner, atau role.
    ========================================================= */
-(function initMobileNoSwipeV38(){
-  if(document.getElementById('mobileNoSwipeV38')) return;
+(function initDashboardMobileFixV39(){
+  if(document.getElementById('dashboardMobileFixV39')) return;
   const st=document.createElement('style');
-  st.id='mobileNoSwipeV38';
+  st.id='dashboardMobileFixV39';
   st.textContent=`
-    html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
-    *,*::before,*::after{box-sizing:border-box}
-    @media(max-width:800px){
-      body,#appView,#appView>*{max-width:100%!important}
-      #appView{width:100%!important;overflow-x:hidden!important;padding-left:8px!important;padding-right:8px!important}
-      .panel,.card,.section,.box,#premiumReportsBox,#monthlyRecapBox,#classRecapBox,#recentActivityBox,#dashboardExtraStats{width:100%!important;max-width:100%!important;overflow:hidden!important}
+    @media(max-width:600px){
+      /* Dashboard utama */
+      #dashboard,
+      #dashboard > *,
+      #dashboard .card,
+      #dashboard .panel,
+      #dashboardExtraStats,
+      #dashboardTrendBox,
+      #recentActivityBox{
+        max-width:100%!important;
+        width:100%!important;
+        min-width:0!important;
+        box-sizing:border-box!important;
+      }
+      #dashboard{overflow:hidden!important}
+      #dashboard .card{padding:13px!important;overflow:hidden!important}
 
-      /* Jangan ada elemen lebar yang memaksa halaman bergeser */
-      .row,.actions,.button-row,.report-actions,.class-actions,.class-filter,.monthly-filter,.teacher-filter,
-      .dash-trend-head,.class-head,.report-head{max-width:100%!important;min-width:0!important}
-      .row>* ,.actions>*{min-width:0!important;max-width:100%!important}
-      input,select,textarea,button{max-width:100%!important}
+      /* Kartu statistik dashboard */
+      .dash-stat-grid{
+        display:grid!important;
+        grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        width:100%!important;
+        min-width:0!important;
+        gap:8px!important;
+      }
+      .dash-stat{min-width:0!important;width:100%!important;padding:11px 5px!important;overflow:hidden!important}
+      .dash-stat b{font-size:19px!important}
+      .dash-stat span{font-size:10px!important;white-space:normal!important;overflow-wrap:anywhere!important}
 
-      /* Semua tabel mengikuti layar HP, bukan ukuran desktop */
-      .table-wrap,.recent-wrap,.class-table-wrap,.report-table-wrap,.dash-class-table,
-      #attendanceTable,#studentsTable,#classesTable,#teachersTable,#teacherAttendanceTable,
-      #monthlyRecapBox .monthly-table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
+      /* Persentase dan judul */
+      .dash-extra-head{width:100%!important;min-width:0!important;gap:8px!important}
+      .dash-extra-head>div:first-child{min-width:0!important;max-width:100%!important}
+      .dash-extra-head h3{font-size:16px!important;overflow-wrap:anywhere!important}
+      .dash-extra-head p{font-size:10px!important;overflow-wrap:anywhere!important}
+      .dash-percent{font-size:19px!important;white-space:nowrap!important}
 
-      table,
-      .recent-table,.class-table,.report-table,
-      #monthlyRecapBox .monthly-table,
-      #dashboardExtraStats table{display:table!important;width:100%!important;min-width:0!important;max-width:100%!important;
-        table-layout:fixed!important;border-collapse:collapse!important;white-space:normal!important}
-      table th,table td{min-width:0!important;max-width:100%!important;white-space:normal!important;
-        overflow-wrap:anywhere!important;word-break:break-word!important;padding:6px 3px!important;font-size:10px!important}
-      table th{font-size:9px!important}
+      /* Tren 7 hari */
+      #dashboardTrendBox{padding:13px!important;overflow:hidden!important}
+      .dash-trend-head{width:100%!important;min-width:0!important}
+      .dash-trend-head>div{min-width:0!important;max-width:100%!important}
+      .dash-trend-head h3{font-size:16px!important}
+      .dash-trend-head p{font-size:10px!important;overflow-wrap:anywhere!important}
+      .dash-trend-chart{
+        width:100%!important;
+        min-width:0!important;
+        gap:3px!important;
+        padding-left:0!important;
+        padding-right:0!important;
+        overflow:hidden!important;
+      }
+      .dash-bar-col{min-width:0!important;width:14.28%!important;overflow:hidden!important}
+      .dash-bar-value{font-size:9px!important}
+      .dash-bar-col small{font-size:8px!important;white-space:nowrap!important}
+      .dash-bar-wrap{width:100%!important}
+      .dash-trend-legend{gap:7px!important;font-size:9px!important;overflow-wrap:anywhere!important}
 
-      /* Tabel laporan yang sebelumnya min-width:980px */
-      #premiumReportsBox .report-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
-      #premiumReportsBox .report-table th,#premiumReportsBox .report-table td{white-space:normal!important;min-width:0!important;padding:5px 2px!important;font-size:9px!important}
-      #premiumReportsBox .report-table td:nth-child(4){min-width:0!important}
-      #monthlyRecapBox .monthly-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
-      #monthlyRecapBox .monthly-table .monthly-name{min-width:0!important}
-      .class-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
-      .recent-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
-      .dash-class-table table{min-width:0!important;width:100%!important;table-layout:fixed!important}
+      /* Rekap berdasarkan kelas: tidak boleh melebar */
+      .dash-class-wrap{width:100%!important;min-width:0!important;overflow:hidden!important}
+      .dash-class-table{
+        width:100%!important;
+        max-width:100%!important;
+        min-width:0!important;
+        overflow:hidden!important;
+      }
+      .dash-class-table table{
+        display:table!important;
+        width:100%!important;
+        min-width:0!important;
+        max-width:100%!important;
+        table-layout:fixed!important;
+        border-collapse:collapse!important;
+        font-size:8px!important;
+      }
+      .dash-class-table th,
+      .dash-class-table td{
+        padding:6px 2px!important;
+        min-width:0!important;
+        width:auto!important;
+        white-space:normal!important;
+        word-break:break-word!important;
+        overflow-wrap:anywhere!important;
+      }
+      .dash-class-table th:nth-child(1),.dash-class-table td:nth-child(1){width:18%!important;text-align:left!important}
+      .dash-class-table th:nth-child(2),.dash-class-table td:nth-child(2){width:11%!important}
+      .dash-class-table th:nth-child(3),.dash-class-table td:nth-child(3){width:11%!important}
+      .dash-class-table th:nth-child(4),.dash-class-table td:nth-child(4){width:13%!important}
+      .dash-class-table th:nth-child(5),.dash-class-table td:nth-child(5){width:11%!important}
+      .dash-class-table th:nth-child(6),.dash-class-table td:nth-child(6){width:11%!important}
+      .dash-class-table th:nth-child(7),.dash-class-table td:nth-child(7){width:11%!important}
+      .dash-class-table th:nth-child(8),.dash-class-table td:nth-child(8){width:14%!important}
 
-      /* Kartu statistik tidak boleh melebar */
-      .dash-stat-grid,.dash-grid,.dashboard-grid,.stats-grid,.report-summary,.monthly-summary,.class-summary{
-        width:100%!important;max-width:100%!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
-      .dash-stat,.stat-card,.dash-card,.report-stat,.class-card{min-width:0!important;max-width:100%!important}
+      /* Absensi terbaru di dashboard */
+      #recentList{
+        width:100%!important;
+        max-width:100%!important;
+        min-width:0!important;
+        overflow:hidden!important;
+      }
+      #recentList table{
+        display:table!important;
+        width:100%!important;
+        min-width:0!important;
+        max-width:100%!important;
+        table-layout:fixed!important;
+        font-size:9px!important;
+        white-space:normal!important;
+      }
+      #recentList th,#recentList td{
+        padding:6px 3px!important;
+        min-width:0!important;
+        white-space:normal!important;
+        word-break:break-word!important;
+        overflow-wrap:anywhere!important;
+      }
+      #recentList th:nth-child(1),#recentList td:nth-child(1){width:16%!important}
+      #recentList th:nth-child(2),#recentList td:nth-child(2){width:31%!important}
+      #recentList th:nth-child(3),#recentList td:nth-child(3){width:17%!important}
+      #recentList th:nth-child(4),#recentList td:nth-child(4){width:20%!important}
+      #recentList th:nth-child(5),#recentList td:nth-child(5){width:16%!important}
 
-      /* Scanner */
-      #reader,.scan-premium{width:100%!important;max-width:100%!important;overflow:hidden!important}
-      #reader video{width:100%!important;max-width:100%!important;height:auto!important}
-
-      /* Hilangkan sumber overflow umum */
-      [style*="min-width"],[style*="width:"]{max-width:100%!important}
-      img,video,canvas,svg{max-width:100%!important}
+      /* Pastikan elemen pembungkus dashboard tidak membuat layar melebar */
+      #dashboard *{max-width:100%!important;box-sizing:border-box!important}
+      #dashboard table{margin-left:0!important;margin-right:0!important}
+      #dashboard img,#dashboard canvas,#dashboard iframe{max-width:100%!important}
     }
   `;
   document.head.appendChild(st);
+})();
+
+/* =========================================================
+   V3.10 SCANNER AUTO FINAL
+   Kamera langsung aktif ketika menu Scanner dibuka.
+   Tombol kamera/simpan disembunyikan.
+   ========================================================= */
+(function scannerAutoFinal(){
+  if(window.__scannerAutoFinalV310) return;
+  window.__scannerAutoFinalV310 = true;
+
+  function hideScannerButtons(){
+    ["startScanBtn","stopScanBtn","saveScanBtn"].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){ el.style.setProperty("display","none","important"); }
+    });
+  }
+
+  async function startCameraNow(){
+    hideScannerButtons();
+    if(typeof ensureScanModeUI === "function") ensureScanModeUI();
+    if(typeof scanner !== "undefined" && scanner) return;
+    const reader=document.getElementById("reader");
+    if(!reader || typeof Html5Qrcode === "undefined") return;
+
+    try{
+      scanner=new Html5Qrcode("reader");
+      await scanner.start(
+        {facingMode:"environment"},
+        {fps:10,qrbox:{width:250,height:250}},
+        onScan
+      );
+      const msg=document.getElementById("scanMsg");
+      if(msg) msg.textContent=`Kamera aktif — mode ${scanMode.toUpperCase()}.`;
+    }catch(e){
+      console.error("Scanner otomatis gagal:",e);
+      try{ if(scanner) await scanner.clear(); }catch{}
+      scanner=null;
+      const msg=document.getElementById("scanMsg");
+      if(msg) msg.textContent="Kamera belum aktif. Izinkan akses kamera pada browser.";
+    }
+  }
+
+  async function stopCamera(){
+    if(typeof scanner !== "undefined" && scanner){
+      try{await scanner.stop()}catch{}
+      try{scanner.clear()}catch{}
+      scanner=null;
+    }
+  }
+
+  window.startScannerAutoFinal=startCameraNow;
+  window.stopScannerAutoFinal=stopCamera;
+
+  const originalShowTab=window.showTab;
+  if(typeof originalShowTab === "function"){
+    window.showTab=function(id){
+      originalShowTab(id);
+      hideScannerButtons();
+      if(id === "scanner"){
+        // Dipanggil langsung dari klik menu agar izin kamera tetap dianggap user gesture.
+        startCameraNow();
+      }else{
+        stopCamera();
+      }
+    };
+  }
+
+  // Jika scanner sudah menjadi tab aktif saat login selesai.
+  setTimeout(()=>{
+    hideScannerButtons();
+    const panel=document.getElementById("scanner");
+    if(panel && panel.classList.contains("active")) startCameraNow();
+  },800);
+
+  // Tombol lama tidak boleh muncul lagi setelah render ulang.
+  const obs=new MutationObserver(hideScannerButtons);
+  obs.observe(document.body,{childList:true,subtree:true});
 })();
