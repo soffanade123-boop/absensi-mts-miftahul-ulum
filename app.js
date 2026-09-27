@@ -1717,3 +1717,58 @@ $("refreshDashboard").onclick=renderDashboard;
   `;
   document.head.appendChild(s);
 })();
+
+/* =========================================================
+   V3.17 DASHBOARD MOBILE CLEAN
+   Dashboard rapi, proporsional, tanpa geser horizontal.
+   Tidak mengubah data/Firebase/role/scanner.
+   ========================================================= */
+(function(){
+  if(document.getElementById('v317DashboardClean')) return;
+  const s=document.createElement('style'); s.id='v317DashboardClean'; s.textContent=`
+    .dash-stat-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+    .dash-stat{min-width:0!important;width:100%!important;padding:14px 8px!important;border-radius:16px!important;background:#fff!important;box-shadow:0 5px 16px rgba(20,45,34,.06)!important}
+    .dash-stat b{font-size:22px!important;line-height:1.1!important}
+    .dash-stat span{font-size:10px!important;line-height:1.25!important}
+    .dash-trend-chart{height:180px!important;gap:5px!important;padding:8px 2px 0!important;overflow:hidden!important}
+    .dash-bar-col{min-width:0!important}
+    .dash-bar-wrap{height:125px!important}
+    .dash-bar{width:min(30px,65%)!important}
+    .dash-trend-legend{gap:7px 12px!important;font-size:10px!important}
+    .dash-class-table{overflow:hidden!important;width:100%!important}
+    .dash-class-table table{min-width:0!important;width:100%!important;table-layout:fixed!important;font-size:10px!important}
+    .dash-class-table th,.dash-class-table td{padding:7px 3px!important;word-break:break-word!important;overflow-wrap:anywhere!important}
+    .dash-class-table th:nth-child(1),.dash-class-table td:nth-child(1){width:22%!important}
+    .dash-class-table th:nth-child(2),.dash-class-table td:nth-child(2){width:12%!important}
+    .dash-class-table th:nth-child(8),.dash-class-table td:nth-child(8){width:15%!important}
+    @media(max-width:800px){
+      #dashboard{padding:12px!important}
+      #dashboard h2{font-size:20px!important;margin:0 0 4px!important}
+      #dashboard .dash-head{margin-bottom:12px!important}
+      #dashboard .dash-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+      #dashboard .dash-stat{padding:12px 6px!important;min-height:70px!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
+      #dashboard .dash-stat b{font-size:21px!important}
+      #dashboard .dash-stat span{font-size:10px!important}
+      #dashboard .dash-trend-head{align-items:flex-start!important;margin-bottom:8px!important}
+      #dashboard .dash-trend-head h3{font-size:15px!important}
+      #dashboard .dash-trend-head p{font-size:10px!important;line-height:1.3!important}
+      #dashboard .dash-trend-head>b{font-size:11px!important;white-space:nowrap!important}
+      #dashboard .dash-trend-chart{height:155px!important}
+      #dashboard .dash-bar-wrap{height:105px!important}
+      #dashboard .dash-bar-value{font-size:9px!important}
+      #dashboard .dash-bar-col small{font-size:9px!important}
+      #dashboard .dash-trend-legend{font-size:9px!important;gap:5px 9px!important}
+      #dashboard .dash-class-title{font-size:14px!important}
+      #dashboard .dash-class-table{border-radius:12px!important}
+      #dashboard .dash-class-table table{font-size:9px!important}
+      #dashboard .dash-class-table th,#dashboard .dash-class-table td{padding:6px 2px!important}
+    }
+    @media(max-width:380px){
+      #dashboard .dash-stat-grid{gap:6px!important}
+      #dashboard .dash-stat{min-height:66px!important}
+      #dashboard .dash-stat b{font-size:19px!important}
+      #dashboard .dash-stat span{font-size:9px!important}
+      #dashboard .dash-class-table table{font-size:8px!important}
+    }
+  `; document.head.appendChild(s);
+})();
