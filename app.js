@@ -1828,3 +1828,81 @@ $("refreshDashboard").onclick=renderDashboard;
   const obs=new MutationObserver(hideScannerButtons);
   obs.observe(document.body,{childList:true,subtree:true});
 })();
+
+/* =========================================================
+   V3.11 BUTTON PRECISION + SCAN BESAR
+   Hanya memperbaiki ukuran/posisi tombol di HP.
+   Scanner otomatis V3.10 tetap dipertahankan.
+   ========================================================= */
+(function buttonPolishV311(){
+  if(document.getElementById('buttonPolishV311')) return;
+  const st=document.createElement('style');
+  st.id='buttonPolishV311';
+  st.textContent=`
+    @media(max-width:800px){
+      /* Navigasi bawah: tombol lebih presisi dan mudah disentuh */
+      .app-mobile-nav{
+        grid-template-columns:repeat(5,minmax(0,1fr))!important;
+        gap:5px!important;
+        padding:7px!important;
+      }
+      .app-mobile-nav .app-nav-btn{
+        min-width:0!important;
+        width:100%!important;
+        min-height:56px!important;
+        padding:7px 3px!important;
+        display:flex!important;
+        flex-direction:column!important;
+        align-items:center!important;
+        justify-content:center!important;
+        gap:3px!important;
+        border-radius:15px!important;
+        line-height:1!important;
+        font-size:10px!important;
+        overflow:hidden!important;
+      }
+      .app-mobile-nav .app-nav-btn .ico{
+        display:block!important;
+        font-size:21px!important;
+        line-height:22px!important;
+      }
+      /* Tombol SCAN dibuat lebih besar/menonjol */
+      .app-mobile-nav .app-nav-btn[data-go="scanner"]{
+        min-height:64px!important;
+        margin-top:-10px!important;
+        border-radius:18px!important;
+        background:#176044!important;
+        color:#fff!important;
+        box-shadow:0 8px 20px rgba(23,96,68,.28)!important;
+        transform:scale(1.04)!important;
+        z-index:2!important;
+      }
+      .app-mobile-nav .app-nav-btn[data-go="scanner"] .ico{
+        font-size:27px!important;
+        line-height:28px!important;
+      }
+      .app-mobile-nav .app-nav-btn[data-go="scanner"].active{
+        background:#0f4d36!important;
+      }
+      /* Tombol mode scan lebih mudah ditekan */
+      .scan-modes{gap:8px!important}
+      .scan-mode{
+        min-height:48px!important;
+        padding:10px 7px!important;
+        font-size:12px!important;
+        display:flex!important;
+        align-items:center!important;
+        justify-content:center!important;
+        text-align:center!important;
+      }
+      /* Tombol umum: ukuran sentuh konsisten */
+      button,.btn{min-height:44px!important;line-height:1.2!important}
+    }
+    @media(max-width:380px){
+      .app-mobile-nav{gap:3px!important;padding:6px!important}
+      .app-mobile-nav .app-nav-btn{min-height:54px!important;font-size:9px!important}
+      .app-mobile-nav .app-nav-btn[data-go="scanner"]{min-height:62px!important}
+    }
+  `;
+  document.head.appendChild(st);
+})();
