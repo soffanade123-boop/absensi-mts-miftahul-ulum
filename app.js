@@ -1611,3 +1611,77 @@ $("refreshDashboard").onclick=renderDashboard;
   }
   setTimeout(ensureUI,900);
 })();
+
+
+/* =========================================================
+   V3.6 MOBILE APP STYLE
+   Tampilan HP seperti aplikasi + tanpa horizontal scroll
+   Tidak mengubah Firebase, role, scanner, atau struktur data.
+   ========================================================= */
+(function initMobileAppStyle(){
+  if(document.getElementById('mobileAppStyleV36')) return;
+  const st=document.createElement('style');
+  st.id='mobileAppStyleV36';
+  st.textContent=`
+    *{box-sizing:border-box}
+    html,body{width:100%;max-width:100%;overflow-x:hidden!important}
+    img,video,canvas,svg{max-width:100%}
+    @media(max-width:800px){
+      body{font-size:14px!important;padding-bottom:78px!important}
+      #appView{width:100%!important;max-width:100%!important;margin:0!important;padding:0 10px 84px!important;overflow-x:hidden!important}
+      #appView .panel{width:100%!important;max-width:100%!important;border-radius:18px!important;margin-bottom:12px!important;padding:14px!important;overflow:hidden!important}
+      .app-mobile-header{margin:0 -10px!important;padding:12px 12px!important;border-radius:0 0 18px 18px!important}
+      .app-brand-icon{width:42px!important;height:42px!important}
+      .app-brand-title{font-size:14px!important}
+      .app-brand-sub{font-size:10px!important}
+      .app-user-pill{max-width:120px!important;font-size:10px!important;padding:7px 8px!important}
+      .tabs,.app-desktop-tabs{display:none!important}
+      .app-mobile-nav{position:fixed!important;left:8px!important;right:8px!important;bottom:8px!important;z-index:9999!important;display:flex!important;justify-content:space-around!important;align-items:center!important;gap:4px!important;padding:7px 5px!important;border:1px solid #dfe9e4!important;border-radius:20px!important;background:rgba(255,255,255,.96)!important;box-shadow:0 10px 30px rgba(20,45,34,.16)!important;backdrop-filter:blur(16px)!important}
+      .app-mobile-nav button{min-width:0!important;flex:1!important;padding:8px 3px!important;border:0!important;background:transparent!important;font-size:10px!important;font-weight:700!important;line-height:1.15!important;border-radius:13px!important}
+      .grid-form{grid-template-columns:1fr!important;gap:10px!important}
+      input,select,textarea{width:100%!important;max-width:100%!important;min-height:44px!important;font-size:16px!important}
+      .button-row{display:grid!important;grid-template-columns:1fr!important;width:100%!important;gap:8px!important}
+      .button-row button,.button-row .btn{width:100%!important;min-height:44px!important}
+      .section-title{font-size:16px!important}
+      table{min-width:0!important;width:100%!important}
+      .table-wrap,.recent-wrap,.class-table-wrap,.report-table-wrap{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
+      .table-wrap table,.recent-table,.class-table,.tabel-raport{display:table!important;table-layout:fixed!important;white-space:normal!important;font-size:11px!important}
+      .table-wrap th,.table-wrap td,.recent-table th,.recent-table td,.class-table th,.class-table td,.tabel-raport th,.tabel-raport td{padding:7px 4px!important;word-break:break-word!important;overflow-wrap:anywhere!important}
+      /* Sembunyikan kolom yang terlalu lebar di daftar utama HP; detail tetap tersedia lewat aksi. */
+      #studentsTable th:nth-child(4),#studentsTable td:nth-child(4),
+      #studentsTable th:nth-child(5),#studentsTable td:nth-child(5){display:none!important}
+      .dash-grid,.dashboard-grid,.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+      .stat-card,.dash-card{min-width:0!important;padding:11px 8px!important;border-radius:15px!important}
+      .stat-card b,.dash-card b{font-size:20px!important}
+      .scan-premium{width:100%!important;max-width:100%!important;padding:12px!important;border-radius:18px!important}
+      #reader{width:100%!important;max-width:100%!important;min-height:240px!important;overflow:hidden!important;border-radius:16px!important}
+      #reader video{width:100%!important;height:auto!important;object-fit:cover!important}
+      .scan-mode-buttons{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important}
+      .scan-mode{min-height:42px!important}
+      #scanResult{max-width:100%!important;overflow-wrap:anywhere!important}
+      #premiumReportsBox,.report-filter,.class-filter,#recentActivityBox,#classRecapBox{width:100%!important;max-width:100%!important}
+      #premiumReportsBox .report-filter{grid-template-columns:1fr!important}
+      #premiumReportsBox .report-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      .class-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      .report-actions,.class-head{align-items:stretch!important;flex-direction:column!important}
+      .report-actions button,.class-actions button{width:100%!important;min-height:44px!important}
+      .identity-box{grid-template-columns:1fr!important}
+      .identity-box div{display:flex!important;justify-content:space-between!important;gap:8px!important}
+      .identity-box strong{min-width:0!important}
+      .report-header h2{font-size:17px!important}
+      .report-header h3{font-size:14px!important}
+      .report-header p{font-size:11px!important}
+      .recent-table,.class-table{font-size:10px!important}
+      /* Semua tombol/modal agar tidak melebar keluar layar */
+      button,.btn{max-width:100%!important;white-space:normal!important}
+      .modal,.modal-content,[id*="Modal"],[class*="modal"]{max-width:calc(100vw - 20px)!important}
+    }
+    @media(max-width:380px){
+      #appView{padding-left:7px!important;padding-right:7px!important}
+      .app-mobile-nav{left:5px!important;right:5px!important}
+      .app-mobile-nav button{font-size:9px!important}
+      .dash-grid,.dashboard-grid,.stats-grid{gap:6px!important}
+    }
+  `;
+  document.head.appendChild(st);
+})();
