@@ -222,9 +222,9 @@ function showTab(id){
  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
  $(id).classList.add("active");document.querySelector(`[data-tab="${id}"]`).classList.add("active");
- if(id!=="scanner" && typeof stopScannerAutoFinal==="function") stopScannerAutoFinal();
  if(id==="dashboard") renderDashboard(); if(id==="students") renderStudents(); if(id==="classes") renderClasses(); if(id==="attendance") renderAttendance(); if(id==="teachers") { ensureTeacherUI(); renderTeachers(); renderTeacherAttendance(); }
- if(id==="scanner" && typeof startScannerAutoFinal==="function") setTimeout(startScannerAutoFinal,250);
+ if(id==="scanner") setTimeout(startScannerAutoV319,250);
+ else setTimeout(stopScannerAutoV319,0);
 }
 function initAppStyleUI(){
   const app=$("appView"); if(!app || document.getElementById("appMobileNav")) return;
@@ -1614,161 +1614,135 @@ $("refreshDashboard").onclick=renderDashboard;
   setTimeout(ensureUI,900);
 })();
 
-/* V3.15 FIX — SCANNER OTOMATIS FINAL
-   Kamera langsung aktif ketika menu Scanner dibuka.
-   Tombol manual disembunyikan, tetapi fungsi scan asli tetap dipakai.
-*/
+/* V3.18 DASHBOARD POLISHED — mobile first, no horizontal scroll */
 (function(){
-  let starting=false;
-  window.startScannerAutoFinal=async function(){
-    if(starting || scanner) return;
-    const panel=document.getElementById("scanner"), reader=document.getElementById("reader");
-    if(!panel || !reader || !panel.classList.contains("active")) return;
-    starting=true;
-    try{
-      if(typeof ensureScanModeUI==="function") ensureScanModeUI();
-      scanner=new Html5Qrcode("reader");
-      await scanner.start({facingMode:"environment"},{fps:12,qrbox:{width:260,height:260}},onScan);
-      const msg=document.getElementById("scanMsg");
-      if(msg) msg.textContent=`Kamera aktif — mode ${scanMode.toUpperCase()}.`;
-    }catch(e){
-      console.error("Scanner otomatis:",e);
-      try{if(scanner) await scanner.stop();}catch{}
-      try{if(scanner) scanner.clear();}catch{}
-      scanner=null;
-      const msg=document.getElementById("scanMsg");
-      if(msg) msg.textContent="Kamera belum aktif. Izinkan akses kamera lalu buka Scanner lagi.";
-    }finally{ starting=false; }
-  };
-  window.stopScannerAutoFinal=async function(){
-    if(!scanner) return;
-    try{await scanner.stop();}catch{}
-    try{scanner.clear();}catch{}
-    scanner=null;
-  };
-  function hideManual(){
-    ["startScanBtn","stopScanBtn","saveScanBtn"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none";});
-  }
-  function boot(){
-    hideManual();
-    const panel=document.getElementById("scanner");
-    if(panel && panel.classList.contains("active")) setTimeout(startScannerAutoFinal,300);
-  }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot);
-  else setTimeout(boot,300);
-  const st=document.createElement("style");
-  st.id="v315ScannerAuto";
-  st.textContent=`#startScanBtn,#stopScanBtn,#saveScanBtn{display:none!important}
-  @media(max-width:800px){#reader{width:100%!important;max-width:100%!important;overflow:hidden!important}#reader video{width:100%!important;height:auto!important;object-fit:cover!important}}`;
-  document.head.appendChild(st);
+ const s=document.createElement('style'); s.id='dashboardPolishedV318'; s.textContent=`
+ #dashboardExtraStats{margin:14px 0!important;padding:16px!important;border:1px solid #e5ebe8!important;border-radius:20px!important;background:#fff!important;box-shadow:0 8px 26px rgba(20,45,34,.06)!important}
+ .dash-extra-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;margin-bottom:14px!important}
+ .dash-extra-head h3{font-size:18px!important;margin:0!important}.dash-extra-head p{font-size:11px!important;color:#758078!important;margin:4px 0 0!important}.dash-percent{font-size:23px!important;font-weight:900!important;white-space:nowrap!important}.dash-percent span{font-size:10px!important}
+ .dash-stat-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
+ .dash-stat{min-width:0!important;padding:12px 5px!important;border:1px solid #e6ece9!important;border-radius:15px!important;background:#f8faf9!important;text-align:center!important;overflow:hidden!important}
+ .dash-stat b{font-size:21px!important;font-weight:900!important;line-height:1.1!important}.dash-stat span{font-size:10px!important;margin-top:5px!important;color:#66736c!important;white-space:normal!important}
+ .dash-class-wrap{margin-top:15px!important}.dash-class-title{font-size:14px!important;font-weight:850!important;margin-bottom:8px!important}
+ .dash-class-table{overflow:hidden!important;width:100%!important;border:1px solid #e4ebe7!important;border-radius:14px!important}
+ .dash-class-table table{width:100%!important;min-width:0!important;table-layout:fixed!important;border-collapse:collapse!important;font-size:9px!important}
+ .dash-class-table th,.dash-class-table td{padding:7px 2px!important;word-break:break-word!important;overflow-wrap:anywhere!important;text-align:center!important;border-bottom:1px solid #edf1ef!important}
+ .dash-class-table th{background:#f1f6f3!important;font-weight:800!important}.dash-class-table td:first-child{text-align:left!important;padding-left:5px!important}
+ #dashboardTrendBox{margin:14px 0!important;padding:15px!important;border-radius:20px!important;box-shadow:0 8px 26px rgba(20,45,34,.06)!important}
+ .dash-trend-head h3{font-size:17px!important}.dash-trend-head p{font-size:11px!important}.dash-trend-chart{height:165px!important;gap:4px!important;padding:6px 2px 0!important}.dash-bar-col{min-width:0!important}.dash-bar-wrap{height:115px!important}.dash-bar{width:55%!important;max-width:24px!important}.dash-bar-value{font-size:9px!important}.dash-bar-col small{font-size:9px!important}.dash-trend-legend{gap:7px!important;font-size:9px!important}
+ @media(max-width:380px){.dash-stat-grid{gap:6px!important}.dash-stat{padding:10px 3px!important}.dash-stat b{font-size:19px!important}.dash-stat span{font-size:9px!important}.dash-class-table table{font-size:8px!important}.dash-class-table th,.dash-class-table td{padding:6px 1px!important}.dash-percent{font-size:20px!important}}
+ `; document.head.appendChild(s);
 })();
 
-/* =========================================================
-   V3.16 FINAL — FULL MOBILE APP + NO HORIZONTAL SCROLL
-   Scanner auto tetap aktif dari V3.15.
-   Tombol Scan dibuat menonjol.
-   Tidak mengubah Firebase, role, atau struktur data.
-   ========================================================= */
-(function(){
-  if(document.getElementById('v316FinalMobile')) return;
-  const s=document.createElement('style');
-  s.id='v316FinalMobile';
-  s.textContent=`
-    html,body{width:100%!important;max-width:100%!important;overflow-x:hidden!important}
-    @media(max-width:800px){
-      *{box-sizing:border-box!important}
-      body{margin:0!important;padding:0 0 88px!important;overflow-x:hidden!important}
-      #appView{width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;padding:0 10px 100px!important;overflow-x:hidden!important}
-      #appView>.panel,#appView .panel{width:100%!important;max-width:100%!important;min-width:0!important;margin-left:0!important;margin-right:0!important;overflow:hidden!important}
-      #appView .panel *{max-width:100%!important}
-      .app-mobile-header{width:100%!important;max-width:100%!important;margin:0!important;padding:12px 0!important;overflow:hidden!important}
-      .app-desktop-tabs,.tabs{display:none!important}
-      #appMobileNav{position:fixed!important;left:6px!important;right:6px!important;bottom:6px!important;width:auto!important;max-width:none!important;z-index:99999!important;display:flex!important;gap:3px!important;padding:6px!important;overflow:hidden!important}
-      #appMobileNav .app-nav-btn{flex:1!important;min-width:0!important;width:0!important;max-width:none!important;overflow:hidden!important;padding:7px 2px!important;white-space:normal!important}
-      #appMobileNav .app-nav-btn[data-go="scanner"]{flex:1.35!important;transform:translateY(-8px)!important;min-height:68px!important;border:2px solid #0b6847!important;border-radius:18px!important;background:#fff!important;color:#0b6847!important;box-shadow:0 9px 24px rgba(11,104,71,.25)!important;font-size:12px!important;font-weight:900!important}
-      #appMobileNav .app-nav-btn[data-go="scanner"] .ico{width:48px!important;height:48px!important;display:grid!important;place-items:center!important;border-radius:50%!important;background:linear-gradient(145deg,#138a5b,#0b6847)!important;color:#fff!important;font-size:27px!important;box-shadow:0 7px 18px rgba(19,138,91,.30)!important;border:3px solid #fff!important}
-      #appMobileNav .app-nav-btn[data-go="scanner"].active{background:#eaf7f1!important;color:#0b6847!important}
-      .grid-form{width:100%!important;grid-template-columns:1fr!important;min-width:0!important}
-      .dash-stat-grid,.dash-grid,.dashboard-grid,.stats-grid,.class-summary,.report-summary{width:100%!important;min-width:0!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
-      .dash-stat,.stat-card,.dash-card,.class-card{min-width:0!important;width:100%!important;overflow:hidden!important}
-      .dash-class-wrap,.dash-class-table,.table-wrap,.recent-wrap,.class-table-wrap,.report-table-wrap,.monthly-table-wrap{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
-      .dash-class-table table,.table-wrap table,.recent-table,.class-table,.report-table,.monthly-table{display:table!important;width:100%!important;max-width:100%!important;min-width:0!important;table-layout:fixed!important;white-space:normal!important}
-      th,td{max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important}
-      input,select,textarea,button{min-width:0!important;max-width:100%!important}
-      .button-row,.actions,.class-actions,.report-actions{width:100%!important;max-width:100%!important;min-width:0!important;flex-wrap:wrap!important}
-      .button-row button,.actions button,.class-actions button,.report-actions button{max-width:100%!important}
-      #scanner,#reader,#scanPremiumBox,.scan-premium{width:100%!important;max-width:100%!important;min-width:0!important;overflow:hidden!important}
-      #reader{border-radius:18px!important}
-      #reader video{width:100%!important;max-width:100%!important;height:auto!important;object-fit:cover!important}
-      .scan-modes,.scan-mode-buttons{width:100%!important;grid-template-columns:1fr 1fr!important;min-width:0!important}
-      .scan-mode{min-width:0!important;overflow:hidden!important;white-space:normal!important}
-      #premiumReportsBox{width:100%!important;max-width:100%!important;overflow:hidden!important}
-      #premiumReportsBox .report-table{min-width:0!important;width:100%!important;table-layout:fixed!important}
-      #premiumReportsBox .report-table-wrap{overflow:hidden!important}
-      .modal,.modal-content,[id*="Modal"],[class*="modal"]{max-width:calc(100vw - 20px)!important}
+
+/* V3.19 — SCANNER OTOMATIS STABIL */
+async function startScannerAutoV319(){
+  try{
+    if(!document.getElementById("scanner")?.classList.contains("active")) return;
+    if(typeof scanner!=="undefined" && scanner) return;
+    if(typeof ensureScanModeUI==="function") ensureScanModeUI();
+    const reader=document.getElementById("reader");
+    if(!reader || typeof Html5Qrcode==="undefined") return;
+    scanner=new Html5Qrcode("reader");
+    await scanner.start({facingMode:"environment"},{fps:12,qrbox:{width:250,height:250}},onScan);
+    const msg=document.getElementById("scanMsg");
+    if(msg) msg.textContent=`Kamera aktif — mode ${scanMode.toUpperCase()}. Data tersimpan otomatis.`;
+  }catch(e){
+    console.error("Scanner auto V3.19:",e);
+    try{if(scanner){await scanner.stop();}}catch{}
+    try{if(scanner){scanner.clear();}}catch{}
+    scanner=null;
+    const msg=document.getElementById("scanMsg");
+    if(msg) msg.textContent="Kamera belum aktif. Izinkan akses kamera lalu buka Scanner lagi.";
+  }
+}
+async function stopScannerAutoV319(){
+  try{
+    if(typeof scanner!=="undefined" && scanner){
+      try{await scanner.stop();}catch{}
+      try{scanner.clear();}catch{}
+      scanner=null;
     }
-    @media(max-width:380px){
-      #appView{padding-left:7px!important;padding-right:7px!important}
-      #appMobileNav{left:4px!important;right:4px!important}
-      #appMobileNav .app-nav-btn{font-size:9px!important}
-      #appMobileNav .app-nav-btn[data-go="scanner"]{font-size:11px!important;min-height:64px!important}
-      #appMobileNav .app-nav-btn[data-go="scanner"] .ico{width:44px!important;height:44px!important;font-size:24px!important}
+  }catch{}
+}
+(function bootScannerAutoV319(){
+  const boot=()=>{
+    ["startScanBtn","stopScanBtn","saveScanBtn"].forEach(id=>{
+      const e=document.getElementById(id); if(e)e.style.display="none";
+    });
+    if(document.getElementById("scanner")?.classList.contains("active")) setTimeout(startScannerAutoV319,400);
+  };
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot,{once:true});
+  else boot();
+})();
+
+
+/* V3.20 FINAL — DASHBOARD RAPI + SCANNER OTOMATIS TETAP AKTIF */
+(function(){
+  function scannerIsActive(){
+    const panel=document.getElementById('scanner');
+    return !!(panel && panel.classList.contains('active'));
+  }
+  function hideScanButtons(){
+    ['startScanBtn','stopScanBtn','saveScanBtn'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.style.display='none';
+    });
+  }
+  async function ensureAutoScanner(){
+    hideScanButtons();
+    if(!scannerIsActive()) return;
+    if(typeof scanner!=='undefined' && scanner) return;
+    if(typeof startScannerAutoV319==='function'){
+      await startScannerAutoV319();
+    }
+  }
+  async function stopWhenLeaving(){
+    if(scannerIsActive()) return;
+    if(typeof stopScannerAutoV319==='function') await stopScannerAutoV319();
+  }
+  window.ensureAutoScannerV320=ensureAutoScanner;
+
+  function boot(){
+    hideScanButtons();
+    ensureAutoScanner();
+    const panel=document.getElementById('scanner');
+    if(panel){
+      const obs=new MutationObserver(()=>{
+        hideScanButtons();
+        if(scannerIsActive()) setTimeout(ensureAutoScanner,80);
+        else stopWhenLeaving();
+      });
+      obs.observe(panel,{attributes:true,attributeFilter:['class']});
+    }
+    document.addEventListener('click',e=>{
+      const target=e.target.closest?.('[data-tab="scanner"],[data-go="scanner"]');
+      if(target) setTimeout(ensureAutoScanner,120);
+    },true);
+    setInterval(()=>{
+      hideScanButtons();
+      if(scannerIsActive()) ensureAutoScanner();
+    },1200);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+
+  const st=document.createElement('style');
+  st.id='v320FinalMobileStyle';
+  st.textContent=`
+    @media(max-width:800px){
+      #dashboardExtraStats,#dashboardTrendBox{width:100%!important;max-width:100%!important;box-sizing:border-box!important;overflow:hidden!important}
+      .dash-extra-head{align-items:flex-start!important}
+      .dash-extra-head>div:first-child{min-width:0!important;flex:1!important}
+      .dash-percent{flex:0 0 auto!important}
+      .dash-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;width:100%!important}
+      .dash-stat{min-width:0!important;width:100%!important}
+      .dash-class-table{width:100%!important;overflow:hidden!important}
+      .dash-class-table table{width:100%!important;min-width:0!important;table-layout:fixed!important}
+      .dash-class-table th,.dash-class-table td{white-space:normal!important;word-break:break-word!important}
+      #dashboardTrendBox .dash-trend-chart{width:100%!important;min-width:0!important;overflow:hidden!important}
+      #startScanBtn,#stopScanBtn,#saveScanBtn{display:none!important}
     }
   `;
-  document.head.appendChild(s);
-})();
-
-/* =========================================================
-   V3.17 DASHBOARD MOBILE CLEAN
-   Dashboard rapi, proporsional, tanpa geser horizontal.
-   Tidak mengubah data/Firebase/role/scanner.
-   ========================================================= */
-(function(){
-  if(document.getElementById('v317DashboardClean')) return;
-  const s=document.createElement('style'); s.id='v317DashboardClean'; s.textContent=`
-    .dash-stat-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
-    .dash-stat{min-width:0!important;width:100%!important;padding:14px 8px!important;border-radius:16px!important;background:#fff!important;box-shadow:0 5px 16px rgba(20,45,34,.06)!important}
-    .dash-stat b{font-size:22px!important;line-height:1.1!important}
-    .dash-stat span{font-size:10px!important;line-height:1.25!important}
-    .dash-trend-chart{height:180px!important;gap:5px!important;padding:8px 2px 0!important;overflow:hidden!important}
-    .dash-bar-col{min-width:0!important}
-    .dash-bar-wrap{height:125px!important}
-    .dash-bar{width:min(30px,65%)!important}
-    .dash-trend-legend{gap:7px 12px!important;font-size:10px!important}
-    .dash-class-table{overflow:hidden!important;width:100%!important}
-    .dash-class-table table{min-width:0!important;width:100%!important;table-layout:fixed!important;font-size:10px!important}
-    .dash-class-table th,.dash-class-table td{padding:7px 3px!important;word-break:break-word!important;overflow-wrap:anywhere!important}
-    .dash-class-table th:nth-child(1),.dash-class-table td:nth-child(1){width:22%!important}
-    .dash-class-table th:nth-child(2),.dash-class-table td:nth-child(2){width:12%!important}
-    .dash-class-table th:nth-child(8),.dash-class-table td:nth-child(8){width:15%!important}
-    @media(max-width:800px){
-      #dashboard{padding:12px!important}
-      #dashboard h2{font-size:20px!important;margin:0 0 4px!important}
-      #dashboard .dash-head{margin-bottom:12px!important}
-      #dashboard .dash-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
-      #dashboard .dash-stat{padding:12px 6px!important;min-height:70px!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
-      #dashboard .dash-stat b{font-size:21px!important}
-      #dashboard .dash-stat span{font-size:10px!important}
-      #dashboard .dash-trend-head{align-items:flex-start!important;margin-bottom:8px!important}
-      #dashboard .dash-trend-head h3{font-size:15px!important}
-      #dashboard .dash-trend-head p{font-size:10px!important;line-height:1.3!important}
-      #dashboard .dash-trend-head>b{font-size:11px!important;white-space:nowrap!important}
-      #dashboard .dash-trend-chart{height:155px!important}
-      #dashboard .dash-bar-wrap{height:105px!important}
-      #dashboard .dash-bar-value{font-size:9px!important}
-      #dashboard .dash-bar-col small{font-size:9px!important}
-      #dashboard .dash-trend-legend{font-size:9px!important;gap:5px 9px!important}
-      #dashboard .dash-class-title{font-size:14px!important}
-      #dashboard .dash-class-table{border-radius:12px!important}
-      #dashboard .dash-class-table table{font-size:9px!important}
-      #dashboard .dash-class-table th,#dashboard .dash-class-table td{padding:6px 2px!important}
-    }
-    @media(max-width:380px){
-      #dashboard .dash-stat-grid{gap:6px!important}
-      #dashboard .dash-stat{min-height:66px!important}
-      #dashboard .dash-stat b{font-size:19px!important}
-      #dashboard .dash-stat span{font-size:9px!important}
-      #dashboard .dash-class-table table{font-size:8px!important}
-    }
-  `; document.head.appendChild(s);
+  document.head.appendChild(st);
 })();
