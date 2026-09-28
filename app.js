@@ -1836,3 +1836,206 @@ document.addEventListener("touchstart", function () {
     }
   } catch (e) {}
 }, { once: true });
+/* =====================================================
+   INPUT MANUAL IZIN / SAKIT
+   ===================================================== */
+
+function ensureManualAttendanceUI() {
+  const attendancePanel = document.getElementById("attendance");
+  if (!attendancePanel) return;
+
+  if (document.getElementById("manualAttendanceBox")) return;
+
+  const box = document.createElement("div");
+  box.id = "manualAttendanceBox";
+  box.style.cssText = `
+    margin-top:16px;
+    padding:16px;
+    border-radius:16px;
+    background:var(--card,#fff);
+    border:1px solid rgba(0,0,0,.08);
+    box-shadow:0 4px 15px rgba(0,0,0,.06);
+  `;
+
+  box.innerHTML = `
+    <h3 style="margin:0 0 6px;">Input Absensi Manual</h3>
+
+    <div style="font-size:13px;opacity:.7;margin-bottom:14px;">
+      Digunakan untuk siswa yang Izin atau Sakit.
+    </div>
+
+    <select id="manualStudentSelect"
+      style="width:100%;padding:12px;border-radius:10px;margin-bottom:10px;">
+      <option value="">Pilih siswa...</option>
+    </select>
+
+    <select id="manualStatusSelect"
+      style="width:100%;padding:12px;border-radius:10px;margin-bottom:10px;">
+      <option value="Izin">Izin</option>
+      <option value="Sakit">Sakit</option>
+    </select>
+
+    <button id="manualSaveAttendance"
+      style="
+        width:100%;
+        padding:12px;
+        border:0;
+        border-radius:10px;
+        font-weight:700;
+        cursor:pointer;
+      ">
+      Simpan Absensi
+    </button>
+
+    <div id="manualAttendanceMsg"
+      style="margin-top:10px;font-size:13px;"></div>
+  `;
+
+  attendancePanel.appendChild(box);
+
+  renderManualStudentList();
+
+  document.getElementById("manualSaveAttendance").onclick =
+    saveManualAttendance;
+}
+
+
+function renderManualStudentList() {
+  const select = document.getElementById("manualStudentSelect");
+  if (!select) return;
+
+  const oldValue = select.value;
+
+  select.innerHTML = `
+    <option value="">Pilih siswa...</option>
+  `;
+
+  Object.values(students || {})
+    .sort((a,b) => (a.name || "").localeCompare(b.name || ""))
+    .forEach(s => {
+      const option = document.createElement("option");
+
+      option.value = s.id;
+
+      option.textContent =
+        `${s.name || "-"} — ${s.className || "Tanpa Kelas"}`;
+
+      select.appendChild(option);
+    });
+
+  if (oldValue && students?.[oldValue]) {
+    select.value = oldValue;
+  }
+}
+
+
+async function saveManualAttendance() {
+  const studentId =
+    document.getElementById("manualStudentSelect")?.value;
+
+  const status =
+    document.getElementById("manualStatusSelect")?.value;
+
+  const msg =
+    document.getElementById("manualAttendanceMsg");
+
+  if (!studentId) {
+    msg.textContent = "Pilih siswa terlebih dahulu.";
+    return;
+  }
+
+  const s = students?.[studentId];
+
+  if (!s) {
+    msg.textContent = "Data siswa tidak ditemukan.";
+    return;
+  }
+
+  try {
+    const day = today();
+
+    const ref =
+      db.ref(`attendance/${day}/${studentId}`);
+
+    const snap = await ref.once("value");
+
+    const existing = snap.val();
+
+    /*
+      Jika sudah ada MASUK/PULANG,
+      jangan menimpa data.
+    */
+    if (existing) {
+      const entry = getAttendanceEntry(day, studentId);
+      const masuk = getMasuk(entry);
+
+      if (masuk) {
+        msg.textContent =
+          `${s.name} sudah memiliki absensi hari ini (${masuk.status}).`;
+        return;
+      }
+    }
+
+    const data = {
+      studentId: s.id,
+      name: s.name || "",
+      nis: s.nis || "",
+      className: s.className || "",
+      status: status,
+      time: nowTime(),
+      date: day,
+      timestamp: Date.now(),
+      by: auth.currentUser?.email || "",
+      type: "siswa"
+    };
+
+    await ref.set({
+      masuk: data
+    });
+
+    beep(true);
+
+    msg.textContent =
+      `✓ ${s.name} berhasil dicatat sebagai ${status}.`;
+
+    document.getElementById("manualStudentSelect").value = "";
+
+    renderAttendance();
+    renderDashboard();
+
+  } catch (err) {
+    console.error(err);
+
+    msg.textContent =
+      "Gagal menyimpan absensi. Cek koneksi internet.";
+  }
+}
+
+
+/* Jalankan saat halaman Absensi dibuka */
+const oldShowTabManual = window.showTab;
+
+window.showTab = function(id) {
+  if (typeof oldShowTabManual === "function") {
+    oldShowTabManual(id);
+  }
+
+  if (id === "attendance") {
+    setTimeout(() => {
+      ensureManualAttendanceUI();
+      renderManualStudentList();
+    }, 100);
+  }
+};
+
+
+/* Jika Absensi sudah aktif saat aplikasi pertama dibuka */
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => {
+    if (
+      document.getElementById("attendance")?.classList.contains("active")
+    ) {
+      ensureManualAttendanceUI();
+    }
+  }, 500);
+});
