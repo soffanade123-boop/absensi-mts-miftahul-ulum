@@ -247,22 +247,11 @@ function initAppStyleUI(){
   nav.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{showTab(b.dataset.go);sheet.classList.remove("open");sync();window.scrollTo({top:0,behavior:"smooth"})});
   document.getElementById("appMoreBtn").onclick=()=>{
     const grid=document.getElementById("appMoreGrid");
-    const items=currentRole==="admin"?[
-      ["👨‍🎓","Data Siswa","Kelola data siswa","students"],
-      ["🏫","Kelas","Kelola kelas","classes"],
-      ["📊","Rekap & Laporan","Lihat rekap absensi","attendance"],
-      ["👨‍🏫","Data Guru","Kelola guru & kartu QR","teachers"],
-      ["💾","Backup & Restore","Cadangkan dan pulihkan data","settings"]
-    ]:[
-      ["📋","Absensi","Lihat data kehadiran","attendance"],
-      ["🔄","Refresh Data","Muat data terbaru","__refresh"]
-    ];
-    grid.innerHTML=items.map(([ico,title,desc,target])=>`<button type="button" class="app-more-item" data-target="${target}"><span class="app-more-ico">${ico}</span><span class="app-more-copy"><b>${title}</b><small>${desc}</small></span><span class="app-more-arrow">›</span></button>`).join("");
-    grid.querySelectorAll('.app-more-item').forEach(b=>b.onclick=()=>{
-      const target=b.dataset.target;
-      if(target==='__refresh'){ loadAll(); toast('Data berhasil diperbarui.'); sheet.classList.remove('open'); return; }
-      if(target==='teachers' && currentRole!=="admin") return;
-      showTab(target); sheet.classList.remove('open'); sync(); window.scrollTo({top:0,behavior:'smooth'});
+    grid.innerHTML="";
+    document.querySelectorAll('.tab').forEach(t=>{
+      if(getComputedStyle(t).display==='none' && t.dataset.tab!=='students' && t.dataset.tab!=='classes' && t.dataset.tab!=='settings' && t.dataset.tab!=='teachers') return;
+      if(getComputedStyle(t).display==='none') return;
+      const b=document.createElement("button"); b.className="app-more-btn"; b.textContent=t.textContent.trim(); b.onclick=()=>{showTab(t.dataset.tab);sheet.classList.remove("open");sync();window.scrollTo({top:0,behavior:"smooth"})}; grid.appendChild(b);
     });
     sheet.classList.add("open");
   };
@@ -893,50 +882,15 @@ function setScanMode(mode){
  if(msg)msg.textContent=`Siap scan — ${mode.replace("guru-","GURU ").toUpperCase()}. Data tersimpan otomatis.`;
 }
 
-function beep(ok = true) {
-  try {
-    const C = window.AudioContext || window.webkitAudioContext;
-    if (!C) return;
-
-    if (!window.scanAudioCtx) {
-      window.scanAudioCtx = new C();
-    }
-
-    const ctx = window.scanAudioCtx;
-
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = "sine";
-    osc.frequency.value = ok ? 880 : 220;
-
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(
-      ok ? 0.15 : 0.12,
-      ctx.currentTime + 0.01
-    );
-    gain.gain.exponentialRampToValueAtTime(
-      0.0001,
-      ctx.currentTime + 0.18
-    );
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start();
-    osc.stop(ctx.currentTime + 0.2);
-
-  } catch (e) {
-    console.log("Audio beep:", e);
-  }
-
-  if (navigator.vibrate) {
-    navigator.vibrate(ok ? [80] : [180, 80, 180]);
-  }
+function beep(ok=true){
+ try{
+   const C=window.AudioContext||window.webkitAudioContext;
+   if(!C)return;
+   const ctx=new C(),o=ctx.createOscillator(),g=ctx.createGain();
+   o.frequency.value=ok?880:220;o.type="sine";g.gain.value=.05;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+.12);
+   setTimeout(()=>ctx.close(),250);
+ }catch{}
+ if(navigator.vibrate)navigator.vibrate(ok?[80]:[180,80,180]);
 }
 ensureScanModeUI();
 
@@ -951,65 +905,42 @@ $("startScanBtn").onclick=async()=>{
 };
 $("stopScanBtn").onclick=async()=>{if(scanner){try{await scanner.stop()}catch{};scanner.clear();scanner=null;$("scanMsg").textContent="Kamera dihentikan."}};
 async function onScan(decoded){
- if(decoded===lastScanCode)return;
- lastScanCode=decoded;
- setTimeout(()=>lastScanCode=null,1800);
- try{
-   if(scanMode.startsWith("guru-")){
-     const g=Object.values(teachers).find(x=>x.code===decoded||x.nip===decoded||x.id===decoded);
-     if(!g){beep(false);$("scanResult").innerHTML=`Kode guru <b>${esc(decoded)}</b> tidak ditemukan.`;return;}
-     beep(true);
-     const day=today(),id="guru_"+g.id,entry=getAttendanceEntry(day,id);
-     let info=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br>Mode: <b>${scanMode.toUpperCase()}</b><br>Waktu: ${nowTime()}`;
-     if(scanMode==="guru-pulang"&&entry?.masuk)info+=`<br>Masuk: ${esc(entry.masuk.time)}`;
-     if(scanMode==="guru-pulang"&&entry?.pulang)info+=`<br><b>Sudah pulang: ${esc(entry.pulang.time)}</b>`;
-     $("scanResult").innerHTML=info;
-     if(scanMode==="guru-masuk"){
-       if(entry)return toast("Guru ini sudah absen MASUK hari ini.");
-       const data={masuk:{teacherId:g.id,name:g.name,nip:g.nip||"",phone:g.phone||"",status:"Hadir",time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas",type:"guru"}};
-       updateLocalAttendance(`attendance/${day}/${id}`,data);
-       await queueOrWrite(`attendance/${day}/${id}`,data);
-       await logActivity("GURU_MASUK", `${g.name} • ${g.nip||"-"}`, id); beep(true);toast(`Absensi GURU MASUK ${g.name} tersimpan.`);
-     }else{
-       if(!entry?.masuk)return toast("Guru belum melakukan absensi masuk.");
-       if(entry.pulang)return toast("Guru ini sudah absen PULANG.");
-       const pulangData={time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
-       updateLocalAttendance(`attendance/${day}/${id}/pulang`,pulangData);
-       await queueOrWrite(`attendance/${day}/${id}/pulang`,pulangData);
-       await logActivity("GURU_PULANG", `${g.name} • ${g.nip||"-"}`, id); beep(true);toast(`Absensi GURU PULANG ${g.name} tersimpan.`);
-     }
-     renderTeacherAttendance();
-     return;
-   }
-
-   const s=Object.values(students).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
-   if(!s){beep(false);$("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`;selectedStudent=null;return;}
-   beep(true);
-   selectedStudent=s;
-   const entry=getAttendanceEntry(today(),s.id),masuk=getMasuk(entry),pulang=entry?.pulang;
-   let info=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis)}<br>Kelas: ${esc(s.className)}<br>Mode: <b>${scanMode.toUpperCase()}</b><br>Waktu: ${nowTime()}`;
-   if(scanMode==="pulang"&&masuk)info+=`<br>Masuk: ${esc(masuk.time)} (${esc(masuk.status)})`;
-   if(scanMode==="pulang"&&pulang)info+=`<br><b>Sudah pulang: ${esc(pulang.time)}</b>`;
-   $("scanResult").innerHTML=info;
-   if(scanMode==="masuk"){
-     const late=settings.lateAfter && nowTime().slice(0,5)>settings.lateAfter;
-     $("scanStatus").value=late?"Terlambat":"Hadir";
-     if(entry)return toast("Siswa ini sudah absen MASUK hari ini.");
-     const data={masuk:{studentId:s.id,name:s.name,nis:s.nis,className:s.className,status:$("scanStatus").value,time:nowTime(),date:today(),timestamp:Date.now(),by:auth.currentUser?.email||"petugas"}};
-     updateLocalAttendance(`attendance/${today()}/${s.id}`,data);
-     await queueOrWrite(`attendance/${today()}/${s.id}`,data);
-     await logActivity("SISWA_MASUK", `${s.name} • ${s.className} • ${data.masuk.status}`, s.id); beep(true);toast(`Absensi MASUK ${s.name} tersimpan otomatis.`);
-   }else{
-     if(!entry?.masuk)return toast("Siswa belum melakukan absensi masuk.");
-     if(entry.pulang)return toast("Siswa ini sudah absen PULANG.");
-     const pulangData={time:nowTime(),date:today(),timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
-     updateLocalAttendance(`attendance/${today()}/${s.id}/pulang`,pulangData);
-     await queueOrWrite(`attendance/${today()}/${s.id}/pulang`,pulangData);
-     await logActivity("SISWA_PULANG", `${s.name} • ${s.className}`, s.id); beep(true);toast(`Absensi PULANG ${s.name} tersimpan otomatis.`);
-   }
-   renderDashboard();
-   renderAttendance();
- }catch(e){console.error(e);beep(false);toast("Gagal menyimpan absensi. Cek koneksi atau Rules Firebase.");}
+  if(decoded===lastScanCode)return;
+  lastScanCode=decoded;
+  setTimeout(()=>lastScanCode=null,1800);
+  try{
+    const day=today(),waktu=nowTime();
+    const g=Object.values(teachers||{}).find(x=>x.code===decoded||x.nip===decoded||x.id===decoded);
+    if(g){
+      const id="guru_"+g.id,entry=getAttendanceEntry(day,id);
+      $("scanResult").innerHTML=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br><b>GURU TERDETEKSI</b><br>Waktu: ${waktu}`;
+      if(!entry){
+        const data={masuk:{teacherId:g.id,name:g.name,nip:g.nip||"",phone:g.phone||"",status:"Hadir",time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas",type:"guru"}};
+        updateLocalAttendance(`attendance/${day}/${id}`,data); await queueOrWrite(`attendance/${day}/${id}`,data);
+        await logActivity("GURU_MASUK",`${g.name} • ${g.nip||"-"}`,id); beep(true); toast(`GURU MASUK: ${g.name}`);
+      }else if(entry.masuk&&!entry.pulang){
+        const pulangData={time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+        updateLocalAttendance(`attendance/${day}/${id}/pulang`,pulangData); await queueOrWrite(`attendance/${day}/${id}/pulang`,pulangData);
+        await logActivity("GURU_PULANG",`${g.name} • ${g.nip||"-"}`,id); beep(true); toast(`GURU PULANG: ${g.name}`);
+      }else{ beep(false); toast(`${g.name} sudah MASUK dan PULANG hari ini.`); }
+      renderTeacherAttendance(); renderDashboard(); return;
+    }
+    const s=Object.values(students||{}).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
+    if(!s){ beep(false); $("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`; selectedStudent=null; return; }
+    selectedStudent=s; const entry=getAttendanceEntry(day,s.id),masuk=getMasuk(entry),pulang=entry?.pulang;
+    $("scanResult").innerHTML=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis||"-")}<br>Kelas: ${esc(s.className||"-")}<br><b>SISWA TERDETEKSI</b><br>Waktu: ${waktu}`;
+    if(!entry){
+      const late=settings.lateAfter&&waktu.slice(0,5)>settings.lateAfter,status=late?"Terlambat":"Hadir";
+      const data={masuk:{studentId:s.id,name:s.name,nis:s.nis||"",className:s.className||"",status,time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"}};
+      updateLocalAttendance(`attendance/${day}/${s.id}`,data); await queueOrWrite(`attendance/${day}/${s.id}`,data);
+      await logActivity("SISWA_MASUK",`${s.name} • ${s.className||"-"} • ${status}`,s.id); beep(true); toast(`SISWA ${status.toUpperCase()}: ${s.name}`);
+    }else if(masuk&&!pulang){
+      const pulangData={time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+      updateLocalAttendance(`attendance/${day}/${s.id}/pulang`,pulangData); await queueOrWrite(`attendance/${day}/${s.id}/pulang`,pulangData);
+      await logActivity("SISWA_PULANG",`${s.name} • ${s.className||"-"}`,s.id); beep(true); toast(`SISWA PULANG: ${s.name}`);
+    }else{ beep(false); toast(`${s.name} sudah MASUK dan PULANG hari ini.`); }
+    renderDashboard(); renderAttendance();
+  }catch(e){ console.error(e); beep(false); toast("Gagal menyimpan absensi. Cek koneksi atau Rules Firebase."); }
 }
 function buildStudentWAText(s,status,waktu=""){
  const wali=s.parentName||"Bapak/Ibu Wali";
@@ -1691,26 +1622,6 @@ $("refreshDashboard").onclick=renderDashboard;
 })();
 
 
-
-/* FINAL MOBILE MENU + PETUGAS POLISH */
-(function(){
-  const st=document.createElement('style');
-  st.id='finalMobilePolish';
-  st.textContent=`
-    .app-more-card{padding:18px 16px 20px!important;border-radius:28px 28px 0 0!important;background:linear-gradient(180deg,#ffffff,#f7faf8)!important}
-    .app-more-head{font-size:19px!important;font-weight:900!important;padding:2px 2px 14px!important}
-    .app-more-grid{display:grid!important;grid-template-columns:1fr!important;gap:9px!important}
-    .app-more-item{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:1px solid #e1ebe6;background:#fff;border-radius:17px;padding:12px 13px;box-shadow:0 5px 16px rgba(20,45,34,.05);cursor:pointer}
-    .app-more-item:active{transform:scale(.985);background:#f1f8f4}
-    .app-more-ico{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:#eef7f2;font-size:20px;flex:0 0 40px}
-    .app-more-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-    .app-more-copy b{font-size:13px;color:#12251d}.app-more-copy small{font-size:10px;color:#81908a}
-    .app-more-arrow{font-size:25px;color:#9aa9a3}
-    .app-user-pill{font-size:11px!important;font-weight:800!important}
-    @media(max-width:650px){.app-mobile-header{padding:12px 13px!important}.app-brand-title{font-size:16px!important}.app-brand-sub{font-size:10px!important}.app-user-pill{padding:8px 10px!important}}
-  `; document.head.appendChild(st);
-})();
-
 /* V3.19 — SCANNER OTOMATIS STABIL */
 async function startScannerAutoV319(){
   try{
@@ -1822,220 +1733,139 @@ async function stopScannerAutoV319(){
   `;
   document.head.appendChild(st);
 })();
-document.addEventListener("touchstart", function () {
-  try {
-    const C = window.AudioContext || window.webkitAudioContext;
-    if (!C) return;
-
-    if (!window.scanAudioCtx) {
-      window.scanAudioCtx = new C();
-    }
-
-    if (window.scanAudioCtx.state === "suspended") {
-      window.scanAudioCtx.resume().catch(() => {});
-    }
-  } catch (e) {}
-}, { once: true });
-/* =====================================================
-   INPUT MANUAL IZIN / SAKIT
-   ===================================================== */
-
-function ensureManualAttendanceUI() {
-  const attendancePanel = document.getElementById("attendance");
-  if (!attendancePanel) return;
-
-  if (document.getElementById("manualAttendanceBox")) return;
-
-  const box = document.createElement("div");
-  box.id = "manualAttendanceBox";
-  box.style.cssText = `
-    margin-top:16px;
-    padding:16px;
-    border-radius:16px;
-    background:var(--card,#fff);
-    border:1px solid rgba(0,0,0,.08);
-    box-shadow:0 4px 15px rgba(0,0,0,.06);
-  `;
-
-  box.innerHTML = `
-    <h3 style="margin:0 0 6px;">Input Absensi Manual</h3>
-
-    <div style="font-size:13px;opacity:.7;margin-bottom:14px;">
-      Digunakan untuk siswa yang Izin atau Sakit.
-    </div>
-
-    <select id="manualStudentSelect"
-      style="width:100%;padding:12px;border-radius:10px;margin-bottom:10px;">
-      <option value="">Pilih siswa...</option>
-    </select>
-
-    <select id="manualStatusSelect"
-      style="width:100%;padding:12px;border-radius:10px;margin-bottom:10px;">
-      <option value="Izin">Izin</option>
-      <option value="Sakit">Sakit</option>
-    </select>
-
-    <button id="manualSaveAttendance"
-      style="
-        width:100%;
-        padding:12px;
-        border:0;
-        border-radius:10px;
-        font-weight:700;
-        cursor:pointer;
-      ">
-      Simpan Absensi
-    </button>
-
-    <div id="manualAttendanceMsg"
-      style="margin-top:10px;font-size:13px;"></div>
-  `;
-
-  attendancePanel.appendChild(box);
-
-  renderManualStudentList();
-
-  document.getElementById("manualSaveAttendance").onclick =
-    saveManualAttendance;
-}
 
 
-function renderManualStudentList() {
-  const select = document.getElementById("manualStudentSelect");
-  if (!select) return;
+/* V3.24 - HILANGKAN PILIHAN MODE; SCANNER OTOMATIS */
+(function(){
+ function hideManualScanControls(){
+  [".scan-modes","#scanModeWrap","#scanMode","#scanModeMasuk","#scanModePulang","#scanModeGuruMasuk","#scanModeGuruPulang","#scanStatus","#startScanBtn","#stopScanBtn","#saveScanBtn"].forEach(sel=>document.querySelectorAll(sel).forEach(el=>el.style.display="none"));
+  const msg=document.getElementById("scanMsg"); if(msg&&document.getElementById("scanner")?.classList.contains("active")) msg.textContent="Arahkan kamera ke kartu siswa/guru. MASUK dan PULANG otomatis.";
+ }
+ function run(){hideManualScanControls();setTimeout(hideManualScanControls,300);setTimeout(hideManualScanControls,800);setTimeout(hideManualScanControls,1500);}
+ if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",run,{once:true}); else run();
+ const oldShowTab=window.showTab; if(typeof oldShowTab==="function") window.showTab=function(id){oldShowTab(id);if(id==="scanner")run();};
+})();
 
-  const oldValue = select.value;
+/* =========================================================
+   ABSENSI MANUAL — IZIN / SAKIT / ALPA
+   Tidak mengubah role, Firebase Rules, atau scanner otomatis.
+   ========================================================= */
+(function initManualAttendanceStatus(){
+  if(window.__manualAttendanceStatusReady) return;
+  window.__manualAttendanceStatusReady = true;
 
-  select.innerHTML = `
-    <option value="">Pilih siswa...</option>
-  `;
-
-  Object.values(students || {})
-    .sort((a,b) => (a.name || "").localeCompare(b.name || ""))
-    .forEach(s => {
-      const option = document.createElement("option");
-
-      option.value = s.id;
-
-      option.textContent =
-        `${s.name || "-"} — ${s.className || "Tanpa Kelas"}`;
-
-      select.appendChild(option);
-    });
-
-  if (oldValue && students?.[oldValue]) {
-    select.value = oldValue;
-  }
-}
-
-
-async function saveManualAttendance() {
-  const studentId =
-    document.getElementById("manualStudentSelect")?.value;
-
-  const status =
-    document.getElementById("manualStatusSelect")?.value;
-
-  const msg =
-    document.getElementById("manualAttendanceMsg");
-
-  if (!studentId) {
-    msg.textContent = "Pilih siswa terlebih dahulu.";
-    return;
+  function injectStyle(){
+    if(document.getElementById('manualStatusStyle')) return;
+    const st=document.createElement('style');
+    st.id='manualStatusStyle';
+    st.textContent=`
+      #manualAttendanceBox{margin:18px 0;padding:16px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;box-shadow:0 5px 18px rgba(0,0,0,.04)}
+      #manualAttendanceBox h3{margin:0 0 4px;font-size:17px}
+      #manualAttendanceBox .manual-sub{margin:0 0 14px;color:#6b7280;font-size:12px}
+      #manualAttendanceBox .manual-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      #manualAttendanceBox label{font-size:12px;font-weight:600;color:#4b5563}
+      #manualAttendanceBox select{width:100%;margin-top:5px;padding:10px;border:1px solid #d1d5db;border-radius:10px;background:#fff;box-sizing:border-box}
+      #manualAttendanceBox button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+      #manualStatusMsg{margin-top:10px;font-size:12px;color:#6b7280;min-height:18px}
+      @media(max-width:600px){#manualAttendanceBox .manual-grid{grid-template-columns:1fr}}
+    `;
+    document.head.appendChild(st);
   }
 
-  const s = students?.[studentId];
-
-  if (!s) {
-    msg.textContent = "Data siswa tidak ditemukan.";
-    return;
+  function getAttendancePanel(){
+    return document.getElementById('attendance') || document.querySelector('.panel.active');
   }
 
-  try {
-    const day = today();
+  function renderStudentOptions(){
+    const sel=document.getElementById('manualStudent');
+    if(!sel) return;
+    const current=sel.value;
+    const list=Object.values(students||{}).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'id'));
+    sel.innerHTML='<option value="">Pilih siswa...</option>'+list.map(s=>
+      `<option value="${esc(s.id)}">${esc(s.name)} — ${esc(s.className||'-')} — ${esc(s.nis||'-')}</option>`
+    ).join('');
+    if(list.some(s=>String(s.id)===String(current))) sel.value=current;
+  }
 
-    const ref =
-      db.ref(`attendance/${day}/${studentId}`);
+  function ensureUI(){
+    injectStyle();
+    const panel=getAttendancePanel();
+    if(!panel || document.getElementById('manualAttendanceBox')) return;
+    const box=document.createElement('div');
+    box.id='manualAttendanceBox';
+    box.innerHTML=`
+      <h3>Absensi Manual</h3>
+      <p class="manual-sub">Untuk siswa yang Izin, Sakit, atau Alpa.</p>
+      <div class="manual-grid">
+        <label>Siswa
+          <select id="manualStudent"><option value="">Pilih siswa...</option></select>
+        </label>
+        <label>Status
+          <select id="manualStatus">
+            <option value="Izin">Izin</option>
+            <option value="Sakit">Sakit</option>
+            <option value="Alpa">Alpa</option>
+          </select>
+        </label>
+      </div>
+      <button type="button" id="manualSaveBtn" class="primary">Simpan Absensi</button>
+      <div id="manualStatusMsg"></div>
+    `;
+    const table=document.getElementById('attendanceTable');
+    const wrap=table?.parentElement;
+    if(wrap?.parentElement) wrap.parentElement.insertBefore(box,wrap);
+    else panel.appendChild(box);
 
-    const snap = await ref.once("value");
+    renderStudentOptions();
+    document.getElementById('manualSaveBtn').onclick=saveManual;
+  }
 
-    const existing = snap.val();
+  async function saveManual(){
+    const sid=document.getElementById('manualStudent')?.value;
+    const status=document.getElementById('manualStatus')?.value;
+    const msg=document.getElementById('manualStatusMsg');
+    if(!sid) return toast('Pilih siswa terlebih dahulu.');
+    const s=students?.[sid];
+    if(!s) return toast('Data siswa tidak ditemukan.');
+    const day=today();
+    const id=s.id;
+    const entry=typeof getAttendanceEntry==='function' ? getAttendanceEntry(day,id) : attendance?.[day]?.[id];
+    if(entry) return toast('Siswa ini sudah memiliki absensi hari ini.');
 
-    /*
-      Jika sudah ada MASUK/PULANG,
-      jangan menimpa data.
-    */
-    if (existing) {
-      const entry = getAttendanceEntry(day, studentId);
-      const masuk = getMasuk(entry);
-
-      if (masuk) {
-        msg.textContent =
-          `${s.name} sudah memiliki absensi hari ini (${masuk.status}).`;
-        return;
-      }
-    }
-
-    const data = {
-      studentId: s.id,
-      name: s.name || "",
-      nis: s.nis || "",
-      className: s.className || "",
-      status: status,
-      time: nowTime(),
-      date: day,
-      timestamp: Date.now(),
-      by: auth.currentUser?.email || "",
-      type: "siswa"
+    const data={
+      studentId:s.id,name:s.name,nis:s.nis||'',className:s.className||'',
+      status,time:nowTime(),date:day,timestamp:Date.now(),
+      by:auth.currentUser?.email||'petugas'
     };
-
-    await ref.set({
-      masuk: data
-    });
-
-    beep(true);
-
-    msg.textContent =
-      `✓ ${s.name} berhasil dicatat sebagai ${status}.`;
-
-    document.getElementById("manualStudentSelect").value = "";
-
-    renderAttendance();
-    renderDashboard();
-
-  } catch (err) {
-    console.error(err);
-
-    msg.textContent =
-      "Gagal menyimpan absensi. Cek koneksi internet.";
-  }
-}
-
-
-/* Jalankan saat halaman Absensi dibuka */
-const oldShowTabManual = window.showTab;
-
-window.showTab = function(id) {
-  if (typeof oldShowTabManual === "function") {
-    oldShowTabManual(id);
-  }
-
-  if (id === "attendance") {
-    setTimeout(() => {
-      ensureManualAttendanceUI();
-      renderManualStudentList();
-    }, 100);
-  }
-};
-
-
-/* Jika Absensi sudah aktif saat aplikasi pertama dibuka */
-document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(() => {
-    if (
-      document.getElementById("attendance")?.classList.contains("active")
-    ) {
-      ensureManualAttendanceUI();
+    const path=`attendance/${day}/${id}`;
+    try{
+      if(typeof updateLocalAttendance==='function') updateLocalAttendance(path,{masuk:data});
+      if(typeof queueOrWrite==='function') await queueOrWrite(path,{masuk:data});
+      else await db.ref(path).set({masuk:data});
+      msg.textContent=`${s.name} — ${status} tersimpan.`;
+      toast(`Absensi ${status} ${s.name} tersimpan.`);
+      document.getElementById('manualStudent').value='';
+      if(typeof renderAttendance==='function') renderAttendance();
+      if(typeof renderDashboard==='function') renderDashboard();
+      if(typeof logActivity==='function') await logActivity('ABSENSI_MANUAL',`${s.name} • ${s.className||'-'} • ${status}`,s.id);
+    }catch(e){
+      console.error(e);
+      msg.textContent='Gagal menyimpan absensi.';
+      toast('Gagal menyimpan. Cek koneksi atau Rules Firebase.');
     }
-  }, 500);
-});
+  }
+
+  function boot(){
+    ensureUI();
+    renderStudentOptions();
+  }
+
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,500),{once:true});
+  const oldShowTab=window.showTab;
+  if(typeof oldShowTab==='function'){
+    window.showTab=function(id){
+      oldShowTab(id);
+      if(id==='attendance') setTimeout(boot,100);
+    };
+  }
+})();
