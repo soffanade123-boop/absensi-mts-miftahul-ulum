@@ -893,15 +893,50 @@ function setScanMode(mode){
  if(msg)msg.textContent=`Siap scan — ${mode.replace("guru-","GURU ").toUpperCase()}. Data tersimpan otomatis.`;
 }
 
-function beep(ok=true){
- try{
-   const C=window.AudioContext||window.webkitAudioContext;
-   if(!C)return;
-   const ctx=new C(),o=ctx.createOscillator(),g=ctx.createGain();
-   o.frequency.value=ok?880:220;o.type="sine";g.gain.value=.05;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+.12);
-   setTimeout(()=>ctx.close(),250);
- }catch{}
- if(navigator.vibrate)navigator.vibrate(ok?[80]:[180,80,180]);
+function beep(ok = true) {
+  try {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return;
+
+    if (!window.scanAudioCtx) {
+      window.scanAudioCtx = new C();
+    }
+
+    const ctx = window.scanAudioCtx;
+
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.value = ok ? 880 : 220;
+
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(
+      ok ? 0.15 : 0.12,
+      ctx.currentTime + 0.01
+    );
+    gain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      ctx.currentTime + 0.18
+    );
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+
+  } catch (e) {
+    console.log("Audio beep:", e);
+  }
+
+  if (navigator.vibrate) {
+    navigator.vibrate(ok ? [80] : [180, 80, 180]);
+  }
 }
 ensureScanModeUI();
 
@@ -1787,3 +1822,17 @@ async function stopScannerAutoV319(){
   `;
   document.head.appendChild(st);
 })();
+document.addEventListener("touchstart", function () {
+  try {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return;
+
+    if (!window.scanAudioCtx) {
+      window.scanAudioCtx = new C();
+    }
+
+    if (window.scanAudioCtx.state === "suspended") {
+      window.scanAudioCtx.resume().catch(() => {});
+    }
+  } catch (e) {}
+}, { once: true });

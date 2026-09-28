@@ -2568,3 +2568,79 @@ body{
     transform:translateX(300%);
   }
 }
+/* FIX MOBILE — LAYOUT TIDAK GESER */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+img,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+/* Semua panel tidak boleh melebihi layar */
+.panel,
+.card,
+.container,
+.content,
+.dashboard,
+.main-content {
+  max-width: 100%;
+}
+
+/* Tabel tetap di dalam layar */
+table {
+  max-width: 100%;
+}
+
+.table-wrap,
+.table-container {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Scanner */
+#reader {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+/* Bottom navigation */
+.bottom-nav {
+  width: 100%;
+  max-width: 100%;
+  left: 0;
+  right: 0;
+}
+
+/* Mencegah teks panjang membuat layar melebar */
+h1,
+h2,
+h3,
+h4,
+p,
+span,
+div {
+  overflow-wrap: anywhere;
+}
