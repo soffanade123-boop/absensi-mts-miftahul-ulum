@@ -2568,29 +2568,63 @@ body{
     transform:translateX(300%);
   }
 }
-/* FIX MOBILE — LAYOUT TIDAK GESER */
+/* ===== MOBILE LAYOUT FIX AMAN ===== */
+
 html,
 body {
   width: 100%;
-  max-width: 100%;
-  overflow-x: hidden !important;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-}
-
 img,
 video,
-canvas,
-iframe {
+canvas {
   max-width: 100%;
+  height: auto;
 }
 
+/* Dashboard jangan dipaksa mengecil */
+#dashboard {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Isi dashboard */
+#dashboard .panel,
+#dashboard .card {
+  min-width: 0;
+}
+
+/* Kartu statistik */
+.stats-grid,
+.stat-grid,
+.dashboard-grid {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Tabel boleh scroll sendiri */
+.table-wrap,
+.table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Scanner tetap memenuhi area */
+#reader {
+  width: 100% !important;
+  overflow: hidden;
+}
+
+/* Jangan sampai tombol/input melebar */
 button,
 input,
 select,
@@ -2598,49 +2632,7 @@ textarea {
   max-width: 100%;
 }
 
-/* Semua panel tidak boleh melebihi layar */
-.panel,
-.card,
-.container,
-.content,
-.dashboard,
-.main-content {
-  max-width: 100%;
-}
-
-/* Tabel tetap di dalam layar */
-table {
-  max-width: 100%;
-}
-
-.table-wrap,
-.table-container {
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-/* Scanner */
-#reader {
-  width: 100% !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
-}
-
 /* Bottom navigation */
 .bottom-nav {
-  width: 100%;
-  max-width: 100%;
-  left: 0;
-  right: 0;
-}
-
-/* Mencegah teks panjang membuat layar melebar */
-h1,
-h2,
-h3,
-h4,
-p,
-span,
-div {
-  overflow-wrap: anywhere;
+  max-width: 100vw;
 }
