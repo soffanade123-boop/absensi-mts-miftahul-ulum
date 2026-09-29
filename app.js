@@ -882,16 +882,45 @@ function setScanMode(mode){
  if(msg)msg.textContent=`Siap scan — ${mode.replace("guru-","GURU ").toUpperCase()}. Data tersimpan otomatis.`;
 }
 
-function beep(ok=true){
+/* BEEP SCANNER FIX — audio dibuka saat pengguna menyentuh layar */
+let scanAudioCtx=null;
+let scanAudioUnlocked=false;
+function unlockScanAudio(){
  try{
    const C=window.AudioContext||window.webkitAudioContext;
    if(!C)return;
-   const ctx=new C(),o=ctx.createOscillator(),g=ctx.createGain();
-   o.frequency.value=ok?880:220;o.type="sine";g.gain.value=.05;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+.12);
-   setTimeout(()=>ctx.close(),250);
- }catch{}
+   if(!scanAudioCtx)scanAudioCtx=new C();
+   if(scanAudioCtx.state==='suspended')scanAudioCtx.resume();
+   const o=scanAudioCtx.createOscillator(),g=scanAudioCtx.createGain();
+   o.frequency.value=440;o.type='sine';g.gain.value=0.0001;
+   o.connect(g);g.connect(scanAudioCtx.destination);o.start();o.stop(scanAudioCtx.currentTime+0.02);
+   scanAudioUnlocked=true;
+ }catch(e){console.warn('Audio scanner:',e)}
+}
+function beep(ok=true){
+ try{
+   const C=window.AudioContext||window.webkitAudioContext;
+   if(C){
+     if(!scanAudioCtx)scanAudioCtx=new C();
+     if(scanAudioCtx.state==='suspended')scanAudioCtx.resume();
+     const ctx=scanAudioCtx;
+     const o=ctx.createOscillator(),g=ctx.createGain();
+     o.type='sine';
+     o.frequency.setValueAtTime(ok?880:220,ctx.currentTime);
+     g.gain.setValueAtTime(0.0001,ctx.currentTime);
+     g.gain.exponentialRampToValueAtTime(0.12,ctx.currentTime+0.01);
+     g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.16);
+     o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.18);
+   }
+ }catch(e){console.warn('Beep:',e)}
  if(navigator.vibrate)navigator.vibrate(ok?[80]:[180,80,180]);
 }
+(function initScanAudio(){
+ const unlock=()=>unlockScanAudio();
+ ['touchstart','pointerdown','click'].forEach(ev=>document.addEventListener(ev,unlock,{passive:true}));
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(unlockScanAudio,300),{once:true});
+ else setTimeout(unlockScanAudio,300);
+})();
 ensureScanModeUI();
 
 $("startScanBtn").onclick=async()=>{
