@@ -221,9 +221,17 @@ installMtsBranding();
 function showTab(id){
  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
- $(id).classList.add("active");document.querySelector(`[data-tab="${id}"]`).classList.add("active");
- if(id==="dashboard") renderDashboard(); if(id==="students") renderStudents(); if(id==="classes") renderClasses(); if(id==="attendance") renderAttendance(); if(id==="teachers") { ensureTeacherUI(); renderTeachers(); renderTeacherAttendance(); }
+ $(id).classList.add("active");
+ const tab=document.querySelector(`[data-tab="${id}"]`); if(tab)tab.classList.add("active");
+ if(id==="dashboard") renderDashboard();
+ if(id==="students") renderStudents();
+ if(id==="classes") renderClasses();
+ if(id==="attendance") renderAttendance();
+ if(id==="teachers") { ensureTeacherUI(); renderTeachers(); renderTeacherAttendance(); }
+ if(id==="scanner") setTimeout(startScannerAutoFinal,180);
+ else setTimeout(stopScannerAutoFinal,0);
 }
+
 function initAppStyleUI(){
   const app=$("appView"); if(!app || document.getElementById("appMobileNav")) return;
   const header=document.createElement("div"); header.className="app-mobile-header";
@@ -905,64 +913,75 @@ $("stopScanBtn").onclick=async()=>{if(scanner){try{await scanner.stop()}catch{};
 async function onScan(decoded){
  if(decoded===lastScanCode)return;
  lastScanCode=decoded;
- setTimeout(()=>lastScanCode=null,1800);
+ setTimeout(()=>lastScanCode=null,1500);
  try{
-   if(scanMode.startsWith("guru-")){
-     const g=Object.values(teachers).find(x=>x.code===decoded||x.nip===decoded||x.id===decoded);
-     if(!g){beep(false);$("scanResult").innerHTML=`Kode guru <b>${esc(decoded)}</b> tidak ditemukan.`;return;}
-     beep(true);
-     const day=today(),id="guru_"+g.id,entry=getAttendanceEntry(day,id);
-     let info=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br>Mode: <b>${scanMode.toUpperCase()}</b><br>Waktu: ${nowTime()}`;
-     if(scanMode==="guru-pulang"&&entry?.masuk)info+=`<br>Masuk: ${esc(entry.masuk.time)}`;
-     if(scanMode==="guru-pulang"&&entry?.pulang)info+=`<br><b>Sudah pulang: ${esc(entry.pulang.time)}</b>`;
-     $("scanResult").innerHTML=info;
-     if(scanMode==="guru-masuk"){
-       if(entry)return toast("Guru ini sudah absen MASUK hari ini.");
+   const day=today();
+   const g=Object.values(teachers).find(x=>x.code===decoded||x.nip===decoded||x.id===decoded);
+   const s=Object.values(students).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
+
+   if(g){
+     const id="guru_"+g.id, entry=getAttendanceEntry(day,id);
+     if(!entry){
+       beep(true);
        const data={masuk:{teacherId:g.id,name:g.name,nip:g.nip||"",phone:g.phone||"",status:"Hadir",time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas",type:"guru"}};
        updateLocalAttendance(`attendance/${day}/${id}`,data);
        await queueOrWrite(`attendance/${day}/${id}`,data);
-       await logActivity("GURU_MASUK", `${g.name} • ${g.nip||"-"}`, id); beep(true);toast(`Absensi GURU MASUK ${g.name} tersimpan.`);
-     }else{
-       if(!entry?.masuk)return toast("Guru belum melakukan absensi masuk.");
-       if(entry.pulang)return toast("Guru ini sudah absen PULANG.");
+       await logActivity("GURU_MASUK",`${g.name} • ${g.nip||"-"}`,id);
+       $("scanResult").innerHTML=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br>Status: <b>MASUK</b><br>Waktu: ${nowTime()}`;
+       toast(`Guru MASUK ${g.name} tersimpan.`);
+     }else if(entry.masuk && !entry.pulang){
+       beep(true);
        const pulangData={time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
        updateLocalAttendance(`attendance/${day}/${id}/pulang`,pulangData);
        await queueOrWrite(`attendance/${day}/${id}/pulang`,pulangData);
-       await logActivity("GURU_PULANG", `${g.name} • ${g.nip||"-"}`, id); beep(true);toast(`Absensi GURU PULANG ${g.name} tersimpan.`);
+       await logActivity("GURU_PULANG",`${g.name} • ${g.nip||"-"}`,id);
+       $("scanResult").innerHTML=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br>Status: <b>PULANG</b><br>Waktu: ${nowTime()}<br>Masuk: ${esc(entry.masuk.time||"-")}`;
+       toast(`Guru PULANG ${g.name} tersimpan.`);
+     }else{
+       beep(false);
+       $("scanResult").innerHTML=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br><b>Absensi hari ini sudah lengkap.</b>`;
+       toast("Guru ini sudah MASUK dan PULANG hari ini.");
      }
-     renderTeacherAttendance();
-     return;
+     renderTeacherAttendance(); renderDashboard(); return;
    }
 
-   const s=Object.values(students).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
-   if(!s){beep(false);$("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`;selectedStudent=null;return;}
-   beep(true);
-   selectedStudent=s;
-   const entry=getAttendanceEntry(today(),s.id),masuk=getMasuk(entry),pulang=entry?.pulang;
-   let info=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis)}<br>Kelas: ${esc(s.className)}<br>Mode: <b>${scanMode.toUpperCase()}</b><br>Waktu: ${nowTime()}`;
-   if(scanMode==="pulang"&&masuk)info+=`<br>Masuk: ${esc(masuk.time)} (${esc(masuk.status)})`;
-   if(scanMode==="pulang"&&pulang)info+=`<br><b>Sudah pulang: ${esc(pulang.time)}</b>`;
-   $("scanResult").innerHTML=info;
-   if(scanMode==="masuk"){
-     const late=settings.lateAfter && nowTime().slice(0,5)>settings.lateAfter;
-     $("scanStatus").value=late?"Terlambat":"Hadir";
-     if(entry)return toast("Siswa ini sudah absen MASUK hari ini.");
-     const data={masuk:{studentId:s.id,name:s.name,nis:s.nis,className:s.className,status:$("scanStatus").value,time:nowTime(),date:today(),timestamp:Date.now(),by:auth.currentUser?.email||"petugas"}};
-     updateLocalAttendance(`attendance/${today()}/${s.id}`,data);
-     await queueOrWrite(`attendance/${today()}/${s.id}`,data);
-     await logActivity("SISWA_MASUK", `${s.name} • ${s.className} • ${data.masuk.status}`, s.id); beep(true);toast(`Absensi MASUK ${s.name} tersimpan otomatis.`);
-   }else{
-     if(!entry?.masuk)return toast("Siswa belum melakukan absensi masuk.");
-     if(entry.pulang)return toast("Siswa ini sudah absen PULANG.");
-     const pulangData={time:nowTime(),date:today(),timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
-     updateLocalAttendance(`attendance/${today()}/${s.id}/pulang`,pulangData);
-     await queueOrWrite(`attendance/${today()}/${s.id}/pulang`,pulangData);
-     await logActivity("SISWA_PULANG", `${s.name} • ${s.className}`, s.id); beep(true);toast(`Absensi PULANG ${s.name} tersimpan otomatis.`);
+   if(s){
+     const entry=getAttendanceEntry(day,s.id), masuk=getMasuk(entry), pulang=entry?.pulang;
+     if(!entry){
+       beep(true);
+       const late=settings.lateAfter && nowTime().slice(0,5)>settings.lateAfter;
+       const status=late?"Terlambat":"Hadir";
+       const data={masuk:{studentId:s.id,name:s.name,nis:s.nis,className:s.className,status,time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"}};
+       updateLocalAttendance(`attendance/${day}/${s.id}`,data);
+       await queueOrWrite(`attendance/${day}/${s.id}`,data);
+       await logActivity("SISWA_MASUK",`${s.name} • ${s.className} • ${status}`,s.id);
+       selectedStudent=s;
+       $("scanResult").innerHTML=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis||"-")}<br>Kelas: ${esc(s.className||"-")}<br>Status: <b>${status}</b><br>MASUK: ${nowTime()}`;
+       toast(`Siswa MASUK ${s.name} tersimpan.`);
+     }else if(masuk && !pulang){
+       beep(true);
+       const pulangData={time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+       updateLocalAttendance(`attendance/${day}/${s.id}/pulang`,pulangData);
+       await queueOrWrite(`attendance/${day}/${s.id}/pulang`,pulangData);
+       await logActivity("SISWA_PULANG",`${s.name} • ${s.className}`,s.id);
+       selectedStudent=s;
+       $("scanResult").innerHTML=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis||"-")}<br>Kelas: ${esc(s.className||"-")}<br>Status: <b>PULANG</b><br>Waktu: ${nowTime()}<br>Masuk: ${esc(masuk.time||"-")}`;
+       toast(`Siswa PULANG ${s.name} tersimpan.`);
+     }else{
+       beep(false);
+       selectedStudent=s;
+       $("scanResult").innerHTML=`<b>${esc(s.name)}</b><br>Kelas: ${esc(s.className||"-")}<br><b>Absensi hari ini sudah lengkap.</b>`;
+       toast("Siswa ini sudah MASUK dan PULANG hari ini.");
+     }
+     renderDashboard(); renderAttendance(); return;
    }
-   renderDashboard();
-   renderAttendance();
+
+   beep(false);
+   $("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`;
+   selectedStudent=null;
  }catch(e){console.error(e);beep(false);toast("Gagal menyimpan absensi. Cek koneksi atau Rules Firebase.");}
 }
+
 function buildStudentWAText(s,status,waktu=""){
  const wali=s.parentName||"Bapak/Ibu Wali";
  return `Assalamu'alaikum ${wali}.\n\nABSENSI ${settings.schoolName}\nNama: ${s.name}\nKelas: ${s.className}\nStatus: ${status}\nTanggal: ${today()}\nWaktu: ${waktu||nowTime()}\n\nTerima kasih.`;
@@ -1874,4 +1893,71 @@ $("refreshDashboard").onclick=renderDashboard;
   document.addEventListener('click',e=>{
     if(e.target.closest('#scanner,#startScanBtn,#reader,.scan-mode,.scan-mode-btn')) unlockAudio();
   },true);
+})();
+
+
+/* =========================================================
+   FINAL AUTO SCAN — TANPA TOMBOL MODE / START / STOP
+   Scanner otomatis menentukan MASUK/PULANG dan SISWA/GURU.
+   ========================================================= */
+(function FINAL_AUTO_SCANNER(){
+  if(window.__FINAL_AUTO_SCANNER__) return;
+  window.__FINAL_AUTO_SCANNER__=true;
+
+  function hideScanButtons(){
+    ["startScanBtn","stopScanBtn","saveScanBtn","scanStatus","scanMode","scanModeSelect"].forEach(id=>{
+      const el=document.getElementById(id); if(el)el.style.display="none";
+    });
+    document.querySelectorAll(".scan-modes,.scan-actions,.scan-mode,.scan-mode-btn").forEach(el=>el.style.display="none");
+    const msg=document.getElementById("scanMsg");
+    if(msg)msg.textContent="Kamera siap — arahkan ke QR/barcode. Masuk/Pulang terdeteksi otomatis.";
+  }
+
+  window.startScannerAutoFinal=async function(){
+    hideScanButtons();
+    if(!document.getElementById("scanner")?.classList.contains("active"))return;
+    if(typeof scanner!=="undefined" && scanner)return;
+    const reader=document.getElementById("reader");
+    if(!reader || typeof Html5Qrcode==="undefined")return;
+    try{
+      ensureScanModeUI();
+      hideScanButtons();
+      scanner=new Html5Qrcode("reader");
+      await scanner.start({facingMode:"environment"},{fps:12,qrbox:{width:250,height:250}},onScan);
+      const msg=document.getElementById("scanMsg");
+      if(msg)msg.textContent="Kamera aktif — scan otomatis. Tidak perlu pilih tombol.";
+    }catch(e){
+      console.error("FINAL AUTO SCANNER",e);
+      try{if(scanner)await scanner.stop();}catch{}
+      try{if(scanner)scanner.clear();}catch{}
+      scanner=null;
+      const msg=document.getElementById("scanMsg");
+      if(msg)msg.textContent="Kamera belum aktif. Izinkan kamera lalu buka menu Scan lagi.";
+    }
+  };
+
+  window.stopScannerAutoFinal=async function(){
+    try{
+      if(typeof scanner!=="undefined" && scanner){
+        try{await scanner.stop();}catch{}
+        try{scanner.clear();}catch{}
+        scanner=null;
+      }
+    }catch{}
+  };
+
+  const boot=()=>{
+    hideScanButtons();
+    setTimeout(hideScanButtons,300);
+    setTimeout(hideScanButtons,1000);
+    if(document.getElementById("scanner")?.classList.contains("active"))setTimeout(startScannerAutoFinal,500);
+  };
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});
+  else boot();
+
+  // Jika UI lama dibuat ulang oleh render, sembunyikan lagi tanpa mengubah fungsi lain.
+  const obs=new MutationObserver(()=>{
+    if(document.getElementById("scanner")?.classList.contains("active"))hideScanButtons();
+  });
+  obs.observe(document.body,{childList:true,subtree:true});
 })();
