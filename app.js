@@ -109,20 +109,31 @@ function setOnlineBadge(){
   el.style.color=online?(n?"#8a6500":"#12633f"):"#9b2020";
 }
 async function queueOrWrite(path,data,mode="set"){
+  const isAttendance=String(path||"").startsWith("attendance/");
+  const writeMode=isAttendance?"update":mode;
   if(navigator.onLine){
-    try{if(mode==="update")await db.ref(path).update(data);else await db.ref(path).set(data);return true;}catch(e){
-      offlineQueue.push({path,data,mode,queuedAt:Date.now()});saveOfflineQueue();setOnlineBadge();return false;
+    try{
+      if(writeMode==="update") await db.ref(path).update(data);
+      else await db.ref(path).set(data);
+      return true;
+    }catch(e){
+      offlineQueue.push({path,data,mode:writeMode,queuedAt:Date.now()});
+      saveOfflineQueue();setOnlineBadge();return false;
     }
   }
-  offlineQueue.push({path,data,mode,queuedAt:Date.now()});saveOfflineQueue();setOnlineBadge();return false;
+  offlineQueue.push({path,data,mode:writeMode,queuedAt:Date.now()});
+  saveOfflineQueue();setOnlineBadge();return false;
 }
 async function flushOfflineQueue(){
   if(!navigator.onLine||!offlineQueue.length){setOnlineBadge();return;}
   const pending=[...offlineQueue]; offlineQueue=[]; saveOfflineQueue();
   const failed=[];
   for(const item of pending){
-    try{if(item.mode==="update")await db.ref(item.path).update(item.data);else await db.ref(item.path).set(item.data);}
-    catch(e){failed.push(item);}
+    try{
+      const isAttendance=String(item.path||"").startsWith("attendance/");
+      if(isAttendance || item.mode==="update") await db.ref(item.path).update(item.data);
+      else await db.ref(item.path).set(item.data);
+    }catch(e){failed.push({...item,mode:String(item.path||"").startsWith("attendance/")?"update":item.mode});}
   }
   if(failed.length){offlineQueue=failed;saveOfflineQueue();toast(`${failed.length} data masih menunggu koneksi.`)}
   else if(pending.length)toast(`${pending.length} data offline berhasil disinkronkan.`);
@@ -221,10 +232,14 @@ installMtsBranding();
 function showTab(id){
  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
- $(id).classList.add("active");document.querySelector(`[data-tab="${id}"]`).classList.add("active");
- if(id==="dashboard") renderDashboard(); if(id==="students") renderStudents(); if(id==="classes") renderClasses(); if(id==="attendance") renderAttendance(); if(id==="teachers") { ensureTeacherUI(); renderTeachers(); renderTeacherAttendance(); }
- if(id==="scanner") setTimeout(startScannerAutoV319,250);
- else setTimeout(stopScannerAutoV319,0);
+ const panel=$(id);if(panel)panel.classList.add("active");
+ const tab=document.querySelector(`[data-tab="${id}"]`);if(tab)tab.classList.add("active");
+ if(id==="dashboard")renderDashboard();
+ if(id==="students")renderStudents();
+ if(id==="classes")renderClasses();
+ if(id==="attendance")renderAttendance();
+ if(id==="teachers"){ensureTeacherUI();renderTeachers();renderTeacherAttendance();}
+ if(id==="scanner")setTimeout(startStableScanner,250);else setTimeout(stopStableScanner,0);
 }
 function initAppStyleUI(){
   const app=$("appView"); if(!app || document.getElementById("appMobileNav")) return;
@@ -588,26 +603,26 @@ window.printAllStudentCodes=()=>{
  if(!w)return toast("Popup diblokir. Izinkan popup untuk mencetak kartu siswa.");
  const school=esc(settings.schoolName||"MTs Miftahul Ulum Pronojiwo");
  const cards=arr.map((s,i)=>`<div class="card">
-   <div class="topline"><div class="brandMark">M</div><div class="headText"><div class="school">${school}</div><div class="label">ABSENSI DIGITAL SISWA</div></div><div class="chip">${esc(s.className||"-")}</div></div>
-   <div class="body">
-     <div class="identity"><div class="name">${esc(s.name||"")}</div><div class="meta"><span>NIS</span><b>${esc(s.nis||"-")}</b></div><div class="meta"><span>KELAS</span><b>${esc(s.className||"-")}</b></div><div class="instruction">Kartu identitas absensi<br>Masuk & Pulang</div></div>
-     <div class="qrBox"><div class="qr" data-code="${esc(s.code||"")}"></div><div class="code">${esc(s.code||"")}</div></div>
+   <div class="cardHead"><div class="school">${school}</div><div class="label">KARTU ABSENSI SISWA</div></div>
+   <div class="content">
+     <div class="identity"><div class="name">${esc(s.name||"")}</div><div class="meta">NIS: ${esc(s.nis||"-")}</div><div class="meta">Kelas: <b>${esc(s.className||"-")}</b></div></div>
+     <div class="qr" data-code="${esc(s.code||"")}"></div>
    </div>
-   <div class="bottom"><span>MTs Miftahul Ulum Pronojiwo</span><span>KARTU SISWA</span></div>
+   <div class="code">${esc(s.code||"")}</div>
+   <div class="hint">Gunakan QR ini untuk absensi masuk dan pulang.</div>
  </div>`).join("");
  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Kartu QR Siswa</title>
  <style>
- *{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#17202a}
- body{padding:8mm}.toolbar{text-align:center;margin:0 0 7mm}.toolbar button{padding:10px 20px;border:0;border-radius:9px;background:#17202a;color:#fff;font-weight:700;cursor:pointer}.toolbar span{margin-left:10px;font-size:12px;color:#68717a}
- .wrap{display:grid;grid-template-columns:repeat(2,85.6mm);grid-auto-rows:54mm;gap:5mm 6mm;justify-content:center}
- .card{width:85.6mm;height:54mm;border:1px solid #9aa1a8;border-radius:4mm;padding:3.8mm;background:linear-gradient(135deg,#fff 0%,#f7f8f8 100%);display:flex;flex-direction:column;break-inside:avoid;page-break-inside:avoid;overflow:hidden;position:relative}
- .card:after{content:"";position:absolute;left:0;top:0;width:2.2mm;height:100%;background:#263238}
- .topline{display:flex;align-items:center;gap:2.5mm;padding-left:1.5mm;border-bottom:1px solid #d9dde0;padding-bottom:2mm}.brandMark{width:8mm;height:8mm;border-radius:2mm;background:#263238;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12pt;font-weight:800}.headText{min-width:0;flex:1}.school{font-size:7.1pt;font-weight:800;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.label{font-size:5.5pt;letter-spacing:1px;color:#69737b;margin-top:.7mm}.chip{border:1px solid #b8bec3;border-radius:3mm;padding:1.2mm 2mm;font-size:6.5pt;font-weight:800;white-space:nowrap}
- .body{display:flex;align-items:center;justify-content:space-between;gap:3mm;flex:1;padding:1.5mm 0 1mm 1.5mm}.identity{min-width:0;flex:1}.name{font-size:11.5pt;font-weight:800;line-height:1.08;margin-bottom:2.3mm;word-break:break-word}.meta{display:flex;gap:2mm;font-size:6.5pt;margin:1mm 0}.meta span{width:10mm;color:#7b838a;letter-spacing:.5px}.meta b{font-weight:700}.instruction{font-size:5.5pt;color:#737b82;line-height:1.35;margin-top:2.2mm}.qrBox{width:29mm;flex:0 0 29mm;text-align:center}.qr{width:25mm;height:25mm;margin:auto;display:flex;align-items:center;justify-content:center;background:#fff}.qr img{width:25mm;height:25mm}.code{font-size:5.8pt;font-weight:800;letter-spacing:1px;margin-top:1mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bottom{border-top:1px solid #d9dde0;padding-top:1.5mm;margin-left:1.5mm;display:flex;justify-content:space-between;gap:2mm;font-size:4.8pt;color:#7a8288;letter-spacing:.4px}
- @page{size:A4 portrait;margin:8mm}@media print{body{padding:0}.toolbar{display:none}.wrap{gap:5mm 6mm}.card{border-color:#9aa1a8}}
- @media(max-width:650px){body{padding:10px}.wrap{grid-template-columns:85.6mm;justify-content:center;gap:5mm}.card{width:85.6mm;height:54mm}}
- </style></head><body><div class="toolbar"><button onclick="window.print()">🖨️ Cetak Kartu</button><span>${arr.length} kartu • Ukuran ATM 85,6 × 54 mm • 10 kartu/A4</span></div><div class="wrap">${cards}</div>
- <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>document.querySelectorAll('.qr').forEach(el=>new QRCode(el,{text:el.dataset.code,width:180,height:180,correctLevel:QRCode.CorrectLevel.M}));<\/script></body></html>`);
+ *{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#111827}
+ body{padding:8mm}.toolbar{text-align:center;margin:0 0 8mm}.toolbar button{padding:10px 20px;border:0;border-radius:8px;background:#111827;color:#fff;font-weight:700;cursor:pointer}.toolbar span{margin-left:10px;font-size:12px;color:#555}
+ .wrap{display:grid;grid-template-columns:repeat(2,1fr);gap:5mm}
+ .card{height:62mm;border:1px solid #9ca3af;border-radius:4mm;padding:4mm;background:#fff;display:flex;flex-direction:column;justify-content:space-between;break-inside:avoid;page-break-inside:avoid;overflow:hidden}
+ .cardHead{text-align:center;border-bottom:1px solid #d1d5db;padding-bottom:2mm}.school{font-size:10pt;font-weight:700;text-transform:uppercase}.label{font-size:7.5pt;letter-spacing:1px;margin-top:1mm;color:#4b5563}
+ .content{display:flex;align-items:center;justify-content:space-between;gap:4mm;flex:1}.identity{flex:1;min-width:0}.name{font-size:13pt;font-weight:700;line-height:1.15;margin-bottom:2mm;word-break:break-word}.meta{font-size:8.5pt;margin:1.2mm 0}.qr{width:31mm;height:31mm;display:flex;align-items:center;justify-content:center;flex:0 0 31mm}.qr img{width:31mm;height:31mm}.code{text-align:center;font-size:9pt;font-weight:700;letter-spacing:1.5px;margin-top:1mm}.hint{text-align:center;font-size:6.5pt;color:#6b7280;margin-top:1.5mm}
+ @page{size:A4 portrait;margin:8mm}@media print{body{padding:0}.toolbar{display:none}.wrap{gap:4mm 5mm}.card{height:62mm;border-color:#9ca3af}}
+ @media(max-width:650px){body{padding:10px}.wrap{grid-template-columns:1fr}.card{height:auto;min-height:220px}}
+ </style></head><body><div class="toolbar"><button onclick="window.print()">🖨️ Cetak Kartu</button><span>${arr.length} kartu • A4 • 8 kartu/halaman</span></div><div class="wrap">${cards}</div>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>document.querySelectorAll('.qr').forEach(el=>new QRCode(el,{text:el.dataset.code,width:150,height:150,correctLevel:QRCode.CorrectLevel.M}));<\/script></body></html>`);
  w.document.close();
 };
 
@@ -882,45 +897,33 @@ function setScanMode(mode){
  if(msg)msg.textContent=`Siap scan — ${mode.replace("guru-","GURU ").toUpperCase()}. Data tersimpan otomatis.`;
 }
 
-/* BEEP SCANNER FIX — audio dibuka saat pengguna menyentuh layar */
-let scanAudioCtx=null;
-let scanAudioUnlocked=false;
+let audioContext=null;
+let audioUnlocked=false;
 function unlockScanAudio(){
- try{
-   const C=window.AudioContext||window.webkitAudioContext;
-   if(!C)return;
-   if(!scanAudioCtx)scanAudioCtx=new C();
-   if(scanAudioCtx.state==='suspended')scanAudioCtx.resume();
-   const o=scanAudioCtx.createOscillator(),g=scanAudioCtx.createGain();
-   o.frequency.value=440;o.type='sine';g.gain.value=0.0001;
-   o.connect(g);g.connect(scanAudioCtx.destination);o.start();o.stop(scanAudioCtx.currentTime+0.02);
-   scanAudioUnlocked=true;
- }catch(e){console.warn('Audio scanner:',e)}
+  try{
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(!C)return;
+    if(!audioContext)audioContext=new C();
+    if(audioContext.state==="suspended")audioContext.resume();
+    audioUnlocked=true;
+  }catch(e){}
 }
+["touchstart","pointerdown","click"].forEach(ev=>document.addEventListener(ev,unlockScanAudio,{passive:true,capture:true}));
 function beep(ok=true){
- try{
-   const C=window.AudioContext||window.webkitAudioContext;
-   if(C){
-     if(!scanAudioCtx)scanAudioCtx=new C();
-     if(scanAudioCtx.state==='suspended')scanAudioCtx.resume();
-     const ctx=scanAudioCtx;
-     const o=ctx.createOscillator(),g=ctx.createGain();
-     o.type='sine';
-     o.frequency.setValueAtTime(ok?880:220,ctx.currentTime);
-     g.gain.setValueAtTime(0.0001,ctx.currentTime);
-     g.gain.exponentialRampToValueAtTime(0.12,ctx.currentTime+0.01);
-     g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.16);
-     o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.18);
-   }
- }catch(e){console.warn('Beep:',e)}
- if(navigator.vibrate)navigator.vibrate(ok?[80]:[180,80,180]);
+  try{
+    unlockScanAudio();
+    if(audioContext){
+      const now=audioContext.currentTime;
+      const o=audioContext.createOscillator(),g=audioContext.createGain();
+      o.type="sine";o.frequency.setValueAtTime(ok?880:220,now);
+      g.gain.setValueAtTime(0.0001,now);
+      g.gain.exponentialRampToValueAtTime(0.12,now+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,now+0.15);
+      o.connect(g);g.connect(audioContext.destination);o.start(now);o.stop(now+0.16);
+    }
+  }catch(e){}
+  try{if(navigator.vibrate)navigator.vibrate(ok?[90]:[180,80,180])}catch(e){}
 }
-(function initScanAudio(){
- const unlock=()=>unlockScanAudio();
- ['touchstart','pointerdown','click'].forEach(ev=>document.addEventListener(ev,unlock,{passive:true}));
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(unlockScanAudio,300),{once:true});
- else setTimeout(unlockScanAudio,300);
-})();
 ensureScanModeUI();
 
 $("startScanBtn").onclick=async()=>{
@@ -934,42 +937,59 @@ $("startScanBtn").onclick=async()=>{
 };
 $("stopScanBtn").onclick=async()=>{if(scanner){try{await scanner.stop()}catch{};scanner.clear();scanner=null;$("scanMsg").textContent="Kamera dihentikan."}};
 async function onScan(decoded){
-  if(decoded===lastScanCode)return;
-  lastScanCode=decoded;
-  setTimeout(()=>lastScanCode=null,1800);
-  try{
-    const day=today(),waktu=nowTime();
-    const g=Object.values(teachers||{}).find(x=>x.code===decoded||x.nip===decoded||x.id===decoded);
-    if(g){
-      const id="guru_"+g.id,entry=getAttendanceEntry(day,id);
-      $("scanResult").innerHTML=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br><b>GURU TERDETEKSI</b><br>Waktu: ${waktu}`;
-      if(!entry){
-        const data={masuk:{teacherId:g.id,name:g.name,nip:g.nip||"",phone:g.phone||"",status:"Hadir",time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas",type:"guru"}};
-        updateLocalAttendance(`attendance/${day}/${id}`,data); await queueOrWrite(`attendance/${day}/${id}`,data);
-        await logActivity("GURU_MASUK",`${g.name} • ${g.nip||"-"}`,id); beep(true); toast(`GURU MASUK: ${g.name}`);
-      }else if(entry.masuk&&!entry.pulang){
-        const pulangData={time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
-        updateLocalAttendance(`attendance/${day}/${id}/pulang`,pulangData); await queueOrWrite(`attendance/${day}/${id}/pulang`,pulangData);
-        await logActivity("GURU_PULANG",`${g.name} • ${g.nip||"-"}`,id); beep(true); toast(`GURU PULANG: ${g.name}`);
-      }else{ beep(false); toast(`${g.name} sudah MASUK dan PULANG hari ini.`); }
-      renderTeacherAttendance(); renderDashboard(); return;
-    }
-    const s=Object.values(students||{}).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
-    if(!s){ beep(false); $("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`; selectedStudent=null; return; }
-    selectedStudent=s; const entry=getAttendanceEntry(day,s.id),masuk=getMasuk(entry),pulang=entry?.pulang;
-    $("scanResult").innerHTML=`<b>${esc(s.name)}</b><br>NIS: ${esc(s.nis||"-")}<br>Kelas: ${esc(s.className||"-")}<br><b>SISWA TERDETEKSI</b><br>Waktu: ${waktu}`;
-    if(!entry){
-      const late=settings.lateAfter&&waktu.slice(0,5)>settings.lateAfter,status=late?"Terlambat":"Hadir";
-      const data={masuk:{studentId:s.id,name:s.name,nis:s.nis||"",className:s.className||"",status,time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"}};
-      updateLocalAttendance(`attendance/${day}/${s.id}`,data); await queueOrWrite(`attendance/${day}/${s.id}`,data);
-      await logActivity("SISWA_MASUK",`${s.name} • ${s.className||"-"} • ${status}`,s.id); beep(true); toast(`SISWA ${status.toUpperCase()}: ${s.name}`);
-    }else if(masuk&&!pulang){
-      const pulangData={time:waktu,date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
-      updateLocalAttendance(`attendance/${day}/${s.id}/pulang`,pulangData); await queueOrWrite(`attendance/${day}/${s.id}/pulang`,pulangData);
-      await logActivity("SISWA_PULANG",`${s.name} • ${s.className||"-"}`,s.id); beep(true); toast(`SISWA PULANG: ${s.name}`);
-    }else{ beep(false); toast(`${s.name} sudah MASUK dan PULANG hari ini.`); }
-    renderDashboard(); renderAttendance();
-  }catch(e){ console.error(e); beep(false); toast("Gagal menyimpan absensi. Cek koneksi atau Rules Firebase."); }
+ if(decoded===lastScanCode)return;
+ lastScanCode=decoded;setTimeout(()=>lastScanCode=null,1600);
+ try{
+   unlockScanAudio();
+   const day=today();
+   const g=Object.values(teachers||{}).find(x=>x.code===decoded||x.nip===decoded||x.id===decoded);
+   if(g){
+     const id="guru_"+g.id,entry=getAttendanceEntry(day,id);
+     if(!entry){
+       const data={masuk:{teacherId:g.id,name:g.name,nip:g.nip||"",phone:g.phone||"",status:"Hadir",time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas",type:"guru"}};
+       updateLocalAttendance(`attendance/${day}/${id}`,data);
+       const ok=await queueOrWrite(`attendance/${day}/${id}`,data);
+       if(!ok&&!navigator.onLine)toast("Guru tersimpan di perangkat, menunggu koneksi.");
+       await logActivity("GURU_MASUK",`${g.name} • ${g.nip||"-"}`,id);beep(true);
+       $("scanResult").innerHTML=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br>GURU — MASUK<br>Waktu: ${nowTime()}`;
+       toast(`Guru MASUK ${g.name} tersimpan.`);
+     }else if(!entry.pulang){
+       const pulangData={time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+       updateLocalAttendance(`attendance/${day}/${id}/pulang`,pulangData);
+       const ok=await queueOrWrite(`attendance/${day}/${id}/pulang`,pulangData);
+       if(!ok&&!navigator.onLine)toast("Pulang tersimpan di perangkat, menunggu koneksi.");
+       await logActivity("GURU_PULANG",`${g.name} • ${g.nip||"-"}`,id);beep(true);
+       $("scanResult").innerHTML=`<b>${esc(g.name)}</b><br>NIP: ${esc(g.nip||"-")}<br>GURU — PULANG<br>Waktu: ${nowTime()}`;
+       toast(`Guru PULANG ${g.name} tersimpan.`);
+     }else{
+       beep(false);toast("Guru ini sudah lengkap absen hari ini.");
+     }
+     renderTeacherAttendance();renderDashboard();return;
+   }
+   const st=Object.values(students||{}).find(x=>x.code===decoded||x.nis===decoded||x.id===decoded);
+   if(!st){beep(false);$("scanResult").innerHTML=`Kode <b>${esc(decoded)}</b> tidak ditemukan.`;return;}
+   const entry=getAttendanceEntry(day,st.id),masuk=getMasuk(entry);
+   if(!entry){
+     const late=settings.lateAfter && nowTime().slice(0,5)>settings.lateAfter;
+     const status=late?"Terlambat":"Hadir";
+     const data={masuk:{studentId:st.id,name:st.name,nis:st.nis,className:st.className,status,time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"}};
+     updateLocalAttendance(`attendance/${day}/${st.id}`,data);
+     const ok=await queueOrWrite(`attendance/${day}/${st.id}`,data);
+     if(!ok&&!navigator.onLine)toast("Absensi tersimpan di perangkat, menunggu koneksi.");
+     await logActivity("SISWA_MASUK",`${st.name} • ${st.className} • ${status}`,st.id);beep(true);
+     $("scanResult").innerHTML=`<b>${esc(st.name)}</b><br>NIS: ${esc(st.nis||"-")}<br>Kelas: ${esc(st.className||"-")}<br>SISWA — MASUK (${status})<br>Waktu: ${nowTime()}`;
+     toast(`Absensi MASUK ${st.name} tersimpan.`);
+   }else if(!entry.pulang){
+     const pulangData={time:nowTime(),date:day,timestamp:Date.now(),by:auth.currentUser?.email||"petugas"};
+     updateLocalAttendance(`attendance/${day}/${st.id}/pulang`,pulangData);
+     const ok=await queueOrWrite(`attendance/${day}/${st.id}/pulang`,pulangData);
+     if(!ok&&!navigator.onLine)toast("Absensi pulang tersimpan di perangkat, menunggu koneksi.");
+     await logActivity("SISWA_PULANG",`${st.name} • ${st.className}`,st.id);beep(true);
+     $("scanResult").innerHTML=`<b>${esc(st.name)}</b><br>NIS: ${esc(st.nis||"-")}<br>Kelas: ${esc(st.className||"-")}<br>SISWA — PULANG<br>Waktu: ${nowTime()}`;
+     toast(`Absensi PULANG ${st.name} tersimpan.`);
+   }else{beep(false);toast("Siswa ini sudah lengkap absen hari ini.");}
+   renderDashboard();renderAttendance();
+ }catch(e){console.error("SCAN",e);beep(false);toast("Gagal menyimpan absensi. Cek koneksi atau Rules Firebase.");}
 }
 function buildStudentWAText(s,status,waktu=""){
  const wali=s.parentName||"Bapak/Ibu Wali";
@@ -1021,7 +1041,169 @@ function printDailyAttendance(){
  w.document.close();
 }
 
+
+// ===== FITUR SAKIT & IZIN — PATCH v2.7 =====
+// Modul tambahan: tidak mengubah alur scan barcode yang sudah ada.
+let excusedStudentId=null;
+let excusedStatus="Sakit";
+
+function ensureExcusedUI(){
+  if(document.getElementById("excusedAbsenceBox")) return;
+  const table=document.getElementById("attendanceTable");
+  if(!table || !table.parentNode) return;
+
+  const style=document.createElement("style");
+  style.id="excusedAbsenceStyle";
+  style.textContent=`
+    #excusedAbsenceBox{margin-top:16px;padding:16px;border:1px solid #e2ebe6;border-radius:18px;background:linear-gradient(145deg,#fff,#f5faf7);box-shadow:0 8px 24px rgba(20,45,34,.06)}
+    #excusedAbsenceBox .ex-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+    #excusedAbsenceBox .ex-title{font-weight:800;font-size:17px;margin:0}
+    #excusedAbsenceBox .ex-sub{font-size:12px;color:#718078;margin:4px 0 0}
+    #excusedAbsenceBox .ex-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    #excusedAbsenceBox button{min-height:42px;padding:9px 13px!important}
+    #excusedAbsenceModal{display:none;position:fixed;inset:0;background:rgba(10,25,18,.35);z-index:9990;align-items:center;justify-content:center;padding:14px}
+    #excusedAbsenceModal.open{display:flex}
+    #excusedAbsenceModal .ex-modal{width:min(720px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:22px;padding:18px;box-shadow:0 25px 70px rgba(0,0,0,.22)}
+    #excusedAbsenceModal .ex-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px}
+    #excusedAbsenceModal .ex-modal-title{font-size:20px;font-weight:850;margin:0}
+    #excusedAbsenceModal .ex-close{background:#f1f5f3!important;color:#52615a!important;border:1px solid #dfe8e3!important;padding:8px 11px!important}
+    #excusedAbsenceModal .ex-toolbar{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;margin-bottom:12px}
+    #excusedAbsenceModal .ex-list{display:grid;gap:8px}
+    #excusedAbsenceModal .ex-student{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border:1px solid #e2ebe6;border-radius:14px;background:#fbfdfc}
+    #excusedAbsenceModal .ex-student-info{min-width:0}.ex-student-name{font-weight:750}.ex-student-meta{font-size:11px;color:#718078;margin-top:3px}
+    #excusedAbsenceModal .ex-student-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    #excusedAbsenceModal .ex-status{border-radius:10px!important;padding:8px 10px!important;font-weight:750!important}
+    #excusedAbsenceModal .ex-sakit{background:#fff7df!important;color:#8a6500!important;border:1px solid #f0d98b!important}
+    #excusedAbsenceModal .ex-izin{background:#eaf3ff!important;color:#245b9c!important;border:1px solid #bdd7f5!important}
+    #excusedAbsenceModal .ex-hapus{background:#f4f5f5!important;color:#69756f!important;border:1px solid #dfe5e2!important}
+    #excusedAbsenceModal .ex-empty{text-align:center;padding:25px;color:#718078}
+    @media(max-width:650px){#excusedAbsenceModal .ex-toolbar{grid-template-columns:1fr}.ex-student{align-items:flex-start!important;flex-direction:column}.ex-student-actions{width:100%;justify-content:flex-start!important}}
+  `;
+  document.head.appendChild(style);
+
+  const box=document.createElement("section");
+  box.id="excusedAbsenceBox";
+  box.innerHTML=`
+    <div class="ex-head">
+      <div><h3 class="ex-title">📝 Sakit & Izin</h3><p class="ex-sub">Tetapkan status siswa tanpa mengganggu proses scan barcode.</p></div>
+    </div>
+    <div class="ex-actions">
+      <button type="button" class="secondary" id="openSakitBtn">🤒 Input Sakit</button>
+      <button type="button" class="secondary" id="openIzinBtn">📄 Input Izin</button>
+    </div>`;
+  table.parentNode.insertBefore(box,table.nextSibling);
+
+  const modal=document.createElement("div");
+  modal.id="excusedAbsenceModal";
+  modal.innerHTML=`
+    <div class="ex-modal">
+      <div class="ex-modal-head">
+        <div><h3 class="ex-modal-title" id="excusedModalTitle">Input Sakit</h3><div style="font-size:12px;color:#718078;margin-top:3px">Tanggal: <b id="excusedModalDate"></b></div></div>
+        <button type="button" class="ex-close" id="closeExcusedBtn">Tutup</button>
+      </div>
+      <div class="ex-toolbar">
+        <input id="excusedSearch" placeholder="Cari nama / NIS...">
+        <select id="excusedClass"><option value="">Semua Kelas</option></select>
+        <select id="excusedStatus"><option value="Sakit">Sakit</option><option value="Izin">Izin</option></select>
+      </div>
+      <div id="excusedStudentList" class="ex-list"></div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  document.getElementById("openSakitBtn").onclick=()=>openExcusedModal("Sakit");
+  document.getElementById("openIzinBtn").onclick=()=>openExcusedModal("Izin");
+  document.getElementById("closeExcusedBtn").onclick=closeExcusedModal;
+  modal.addEventListener("click",e=>{if(e.target===modal)closeExcusedModal()});
+  document.getElementById("excusedSearch").oninput=renderExcusedStudents;
+  document.getElementById("excusedClass").onchange=renderExcusedStudents;
+  document.getElementById("excusedStatus").onchange=()=>{excusedStatus=document.getElementById("excusedStatus").value;renderExcusedStudents()};
+}
+
+function openExcusedModal(status){
+  ensureExcusedUI();
+  excusedStatus=status;
+  const modal=document.getElementById("excusedAbsenceModal");
+  if(!modal)return;
+  document.getElementById("excusedModalTitle").textContent=status==="Sakit"?"🤒 Input Sakit":"📄 Input Izin";
+  document.getElementById("excusedModalDate").textContent=document.getElementById("dateFilter")?.value||today();
+  document.getElementById("excusedStatus").value=status;
+  const opts=Object.values(classes).sort((a,b)=>a.name.localeCompare(b.name,"id")).map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");
+  document.getElementById("excusedClass").innerHTML='<option value="">Semua Kelas</option>'+opts;
+  document.getElementById("excusedSearch").value="";
+  modal.classList.add("open");
+  renderExcusedStudents();
+}
+
+function closeExcusedModal(){document.getElementById("excusedAbsenceModal")?.classList.remove("open")}
+
+function renderExcusedStudents(){
+  const box=document.getElementById("excusedStudentList");
+  if(!box)return;
+  const d=document.getElementById("dateFilter")?.value||today();
+  const q=(document.getElementById("excusedSearch")?.value||"").trim().toLowerCase();
+  const cl=document.getElementById("excusedClass")?.value||"";
+  const arr=Object.values(students).filter(s=>{
+    const text=`${s.name||""} ${s.nis||""}`.toLowerCase();
+    return (!q||text.includes(q)) && (!cl||s.className===cl);
+  }).sort((a,b)=>(a.className||"").localeCompare(b.className||"","id")||(a.name||"").localeCompare(b.name||"","id"));
+  if(!arr.length){box.innerHTML='<div class="ex-empty">Siswa tidak ditemukan.</div>';return;}
+  box.innerHTML=arr.map(s=>{
+    const entry=getAttendanceEntry(d,s.id),m=getMasuk(entry),current=m?.status||"";
+    const currentLabel=(current==="Sakit"||current==="Izin")?`<span class="badge">${esc(current)}</span>`:"";
+    return `<div class="ex-student"><div class="ex-student-info"><div class="ex-student-name">${esc(s.name)}</div><div class="ex-student-meta">NIS: ${esc(s.nis||"-")} • Kelas: ${esc(s.className||"-")} ${currentLabel}</div></div><div class="ex-student-actions"><button type="button" class="ex-status ex-sakit" onclick="setExcusedStatus('${esc(s.id)}','Sakit')">🤒 Sakit</button><button type="button" class="ex-status ex-izin" onclick="setExcusedStatus('${esc(s.id)}','Izin')">📄 Izin</button>${current?`<button type="button" class="ex-status ex-hapus" onclick="removeExcusedStatus('${esc(s.id)}')">Hapus Status</button>`:""}</div></div>`;
+  }).join("");
+}
+
+window.setExcusedStatus=async(id,status)=>{
+  const s=students[id]; if(!s)return;
+  const d=document.getElementById("dateFilter")?.value||today();
+  const existing=getAttendanceEntry(d,id);
+  const existingMasuk=getMasuk(existing);
+  // Jika sudah hadir/terlambat, jangan menimpa tanpa konfirmasi.
+  if(existingMasuk && !["Sakit","Izin"].includes(existingMasuk.status)){
+    const ok=confirm(`${s.name} sudah tercatat ${existingMasuk.status}. Ubah menjadi ${status}?`);
+    if(!ok)return;
+  }
+  const data={
+    masuk:{
+      studentId:id,name:s.name,nis:s.nis||"",className:s.className||"",
+      status,time:"-",date:d,timestamp:Date.now(),
+      by:auth.currentUser?.email||"petugas",manual:true,source:"manual"
+    }
+  };
+  // Pertahankan data pulang yang mungkin sudah ada, tetapi biasanya status sakit/izin tidak perlu pulang.
+  if(existing?.pulang)data.pulang=existing.pulang;
+  updateLocalAttendance(`attendance/${d}/${id}`,data);
+  const ok=await queueOrWrite(`attendance/${d}/${id}`,data);
+  await logActivity(status==="Sakit"?"SISWA_SAKIT":"SISWA_IZIN",`${s.name} • ${s.className||"-"}`,id);
+  renderDashboard();renderAttendance();renderExcusedStudents();
+  toast(ok?`${s.name} ditandai ${status}.`:`${s.name} ditandai ${status} dan menunggu sinkronisasi.`);
+};
+
+window.removeExcusedStatus=async(id)=>{
+  const s=students[id];if(!s)return;
+  const d=document.getElementById("dateFilter")?.value||today();
+  const entry=getAttendanceEntry(d,id),m=getMasuk(entry);
+  if(!["Sakit","Izin"].includes(m?.status))return toast("Siswa ini tidak memiliki status Sakit/Izin.");
+  if(!confirm(`Hapus status ${m.status} untuk ${s.name}?`))return;
+  try{
+    if(entry?.pulang){
+      const replacement={...entry};delete replacement.masuk;
+      // Jika hanya ada pulang, pertahankan data pulang sebagai record legacy.
+      await db.ref(`attendance/${d}/${id}`).set(replacement);
+      attendance[d]=attendance[d]||{};attendance[d][id]=replacement;
+    }else{
+      await db.ref(`attendance/${d}/${id}`).remove();
+      if(attendance[d])delete attendance[d][id];
+    }
+    await logActivity("HAPUS_STATUS_ABSENSI",`${s.name} • ${m.status}`,id);
+    renderDashboard();renderAttendance();renderExcusedStudents();
+    toast("Status berhasil dihapus.");
+  }catch(e){console.error(e);toast("Gagal menghapus status. Cek koneksi Firebase.")}
+};
+
 function renderAttendance(){
+ ensureExcusedUI();
  ensureDailyPrintButton();
  const d=$("dateFilter").value||today(),cl=$("attendanceClassFilter").value,st=$("statusFilter").value;
  const arr=Object.values(attendance[d]||{}).map(raw=>({raw,masuk:getMasuk(raw),pulang:raw?.pulang})).filter(x=>!x.masuk?.type||x.masuk.type!=="guru").filter(x=>(!cl||x.masuk?.className===cl)&&(!st||x.masuk?.status===st)).sort((a,b)=>(a.masuk?.time||"").localeCompare(b.masuk?.time||""));
@@ -1074,9 +1256,8 @@ function ensureTeacherUI(){
  }
 
  const panel=document.createElement("section"); panel.className="panel"; panel.id="teachers";
- panel.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h2>👨‍🏫 Data Guru</h2><p>Kelola guru dan kode QR/barcode absensi.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="secondary" id="printAllTeacherCardsBtn">🖨️ Cetak Kartu Guru</button><button type="button" id="newTeacherBtn">+ Tambah Guru</button></div></div><div id="teacherForm" class="hidden" style="margin-top:15px"><input type="hidden" id="teacherId"><div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))"><input id="teacherNip" placeholder="NIP"><input id="teacherName" placeholder="Nama guru"><input id="teacherPhone" placeholder="No. WhatsApp"><input id="teacherCode" placeholder="Kode / QR"></div><div style="margin-top:10px;display:flex;gap:8px"><button type="button" id="saveTeacherBtn">Simpan</button><button type="button" class="secondary" id="cancelTeacherBtn">Batal</button></div></div><div id="teachersTable" style="margin-top:18px"></div></div><div class="card" style="margin-top:16px"><h2>📋 Rekap Absensi Guru</h2><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label>Tanggal<input type="date" id="teacherDateFilter"></label><button type="button" class="secondary" id="teacherRefreshBtn">Tampilkan</button><button type="button" class="secondary" id="teacherExportBtn">Export CSV</button></div><div id="teacherAttendanceTable" style="margin-top:14px"></div></div>`;
+ panel.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><h2>👨‍🏫 Data Guru</h2><p>Kelola guru dan kode QR/barcode absensi.</p></div><button type="button" id="newTeacherBtn">+ Tambah Guru</button></div><div id="teacherForm" class="hidden" style="margin-top:15px"><input type="hidden" id="teacherId"><div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))"><input id="teacherNip" placeholder="NIP"><input id="teacherName" placeholder="Nama guru"><input id="teacherPhone" placeholder="No. WhatsApp"><input id="teacherCode" placeholder="Kode / QR"></div><div style="margin-top:10px;display:flex;gap:8px"><button type="button" id="saveTeacherBtn">Simpan</button><button type="button" class="secondary" id="cancelTeacherBtn">Batal</button></div></div><div id="teachersTable" style="margin-top:18px"></div></div><div class="card" style="margin-top:16px"><h2>📋 Rekap Absensi Guru</h2><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end"><label>Tanggal<input type="date" id="teacherDateFilter"></label><button type="button" class="secondary" id="teacherRefreshBtn">Tampilkan</button><button type="button" class="secondary" id="teacherExportBtn">Export CSV</button></div><div id="teacherAttendanceTable" style="margin-top:14px"></div></div>`;
  app.appendChild(panel);
- document.getElementById("printAllTeacherCardsBtn").onclick=()=>window.printAllTeacherCards();
  document.getElementById("newTeacherBtn").onclick=()=>{document.getElementById("teacherForm").classList.remove("hidden");document.getElementById("teacherId").value="";document.getElementById("teacherNip").value="";document.getElementById("teacherName").value="";document.getElementById("teacherPhone").value="";document.getElementById("teacherCode").value=""};
  document.getElementById("cancelTeacherBtn").onclick=()=>document.getElementById("teacherForm").classList.add("hidden");
  document.getElementById("saveTeacherBtn").onclick=saveTeacher;
@@ -1101,15 +1282,6 @@ function renderTeachers(){
 }
 window.editTeacher=id=>{const g=teachers[id];if(!g)return;document.getElementById("teacherForm").classList.remove("hidden");document.getElementById("teacherId").value=id;document.getElementById("teacherNip").value=g.nip||"";document.getElementById("teacherName").value=g.name||"";document.getElementById("teacherPhone").value=g.phone||"";document.getElementById("teacherCode").value=g.code||""};
 window.deleteTeacher=async id=>{if(currentRole!=="admin")return;const g=teachers[id];if(confirm("Hapus guru?")){await db.ref("teachers/"+id).remove();await logActivity("HAPUS_GURU", g?.name||id, id)}};
-window.printAllTeacherCards=()=>{
- const arr=Object.values(teachers).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"id"));
- if(!arr.length){toast("Belum ada data guru untuk dicetak.");return;}
- const w=window.open("","_blank"); if(!w){toast("Izinkan pop-up browser untuk mencetak kartu guru.");return;}
- const cards=arr.map(g=>`<div class="teacher-card"><div class="brand">${esc(settings.schoolName)}</div><div class="label">KARTU ABSENSI GURU</div><div class="name">${esc(g.name)}</div><div class="nip">NIP ${esc(g.nip||"-")}</div><div class="qr" data-code="${esc(g.code)}"></div><div class="code">${esc(g.code)}</div><div class="hint">Scan QR untuk absensi guru</div></div>`).join("");
- w.document.write(`<html><head><title>Cetak Kartu Guru</title><style>
- @page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#fff;color:#18372d}.toolbar{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;font-size:12px}.toolbar button{padding:8px 14px;border:0;border-radius:8px;background:#176044;color:#fff;font-weight:700}.sheet{display:grid;grid-template-columns:repeat(3,85.6mm);grid-auto-rows:54mm;gap:6mm 4mm;justify-content:center}.teacher-card{width:85.6mm;height:54mm;border:1px solid #c8ddd3;border-radius:4mm;padding:4mm;position:relative;overflow:hidden;background:linear-gradient(135deg,#eef8f3,#fff);page-break-inside:avoid}.teacher-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4mm;background:#176044}.brand{font-size:9pt;font-weight:800;margin-left:3mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.label{font-size:6.5pt;letter-spacing:1px;font-weight:700;color:#176044;margin:1mm 0 1mm 3mm}.name{font-size:13pt;font-weight:800;line-height:1.1;margin-left:3mm;max-width:47mm}.nip{font-size:7.5pt;color:#587269;margin:1mm 0 0 3mm}.qr{position:absolute;right:4mm;top:8mm;width:25mm;height:25mm;background:#fff;padding:1mm;border-radius:2mm}.qr img{width:100%!important;height:100%!important}.code{position:absolute;right:4mm;top:34.5mm;font-size:6.5pt;font-weight:800;letter-spacing:.5px}.hint{position:absolute;left:7mm;bottom:4mm;font-size:5.8pt;color:#6b8178}.sheet{margin-top:0}@media print{.toolbar{display:none}.sheet{gap:5mm 3.5mm}}
- </style></head><body><div class="toolbar"><b>Kartu Guru • ${arr.length} kartu • 9 kartu/A4</b><button onclick="window.print()">🖨️ Cetak</button></div><div class="sheet">${cards}</div><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>document.querySelectorAll('.qr').forEach(el=>new QRCode(el,{text:el.dataset.code,width:180,height:180,correctLevel:QRCode.CorrectLevel.M}));<\/script></body></html>`); w.document.close();
-};
 window.printTeacherCode=id=>{const g=teachers[id];if(!g)return;const w=window.open("","_blank");w.document.write(`<html><head><title>Kartu Guru</title><style>body{text-align:center;font-family:Arial;padding:30px}.card{width:320px;margin:auto;border:1px solid #ddd;border-radius:16px;padding:22px}</style></head><body><div class="card"><h2>${esc(settings.schoolName)}</h2><h3>${esc(g.name)}</h3><p>NIP: ${esc(g.nip||"-")}</p><div id="qr"></div><b>${esc(g.code)}</b><p>Scan QR ini untuk absensi guru.</p><button onclick="window.print()">Cetak</button></div><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qr'),{text:${JSON.stringify(g.code)},width:190,height:190});<\/script></body></html>`);w.document.close()};
 function renderTeacherAttendance(){
  const d=document.getElementById("teacherDateFilter")?.value||today(),box=document.getElementById("teacherAttendanceTable");if(!box)return;
@@ -1630,271 +1802,23 @@ $("refreshDashboard").onclick=renderDashboard;
   setTimeout(ensureUI,900);
 })();
 
-/* V3.18 DASHBOARD POLISHED — mobile first, no horizontal scroll */
-(function(){
- const s=document.createElement('style'); s.id='dashboardPolishedV318'; s.textContent=`
- #dashboardExtraStats{margin:14px 0!important;padding:16px!important;border:1px solid #e5ebe8!important;border-radius:20px!important;background:#fff!important;box-shadow:0 8px 26px rgba(20,45,34,.06)!important}
- .dash-extra-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;margin-bottom:14px!important}
- .dash-extra-head h3{font-size:18px!important;margin:0!important}.dash-extra-head p{font-size:11px!important;color:#758078!important;margin:4px 0 0!important}.dash-percent{font-size:23px!important;font-weight:900!important;white-space:nowrap!important}.dash-percent span{font-size:10px!important}
- .dash-stat-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
- .dash-stat{min-width:0!important;padding:12px 5px!important;border:1px solid #e6ece9!important;border-radius:15px!important;background:#f8faf9!important;text-align:center!important;overflow:hidden!important}
- .dash-stat b{font-size:21px!important;font-weight:900!important;line-height:1.1!important}.dash-stat span{font-size:10px!important;margin-top:5px!important;color:#66736c!important;white-space:normal!important}
- .dash-class-wrap{margin-top:15px!important}.dash-class-title{font-size:14px!important;font-weight:850!important;margin-bottom:8px!important}
- .dash-class-table{overflow:hidden!important;width:100%!important;border:1px solid #e4ebe7!important;border-radius:14px!important}
- .dash-class-table table{width:100%!important;min-width:0!important;table-layout:fixed!important;border-collapse:collapse!important;font-size:9px!important}
- .dash-class-table th,.dash-class-table td{padding:7px 2px!important;word-break:break-word!important;overflow-wrap:anywhere!important;text-align:center!important;border-bottom:1px solid #edf1ef!important}
- .dash-class-table th{background:#f1f6f3!important;font-weight:800!important}.dash-class-table td:first-child{text-align:left!important;padding-left:5px!important}
- #dashboardTrendBox{margin:14px 0!important;padding:15px!important;border-radius:20px!important;box-shadow:0 8px 26px rgba(20,45,34,.06)!important}
- .dash-trend-head h3{font-size:17px!important}.dash-trend-head p{font-size:11px!important}.dash-trend-chart{height:165px!important;gap:4px!important;padding:6px 2px 0!important}.dash-bar-col{min-width:0!important}.dash-bar-wrap{height:115px!important}.dash-bar{width:55%!important;max-width:24px!important}.dash-bar-value{font-size:9px!important}.dash-bar-col small{font-size:9px!important}.dash-trend-legend{gap:7px!important;font-size:9px!important}
- @media(max-width:380px){.dash-stat-grid{gap:6px!important}.dash-stat{padding:10px 3px!important}.dash-stat b{font-size:19px!important}.dash-stat span{font-size:9px!important}.dash-class-table table{font-size:8px!important}.dash-class-table th,.dash-class-table td{padding:6px 1px!important}.dash-percent{font-size:20px!important}}
- `; document.head.appendChild(s);
-})();
 
-
-/* V3.19 — SCANNER OTOMATIS STABIL */
-async function startScannerAutoV319(){
-  try{
-    if(!document.getElementById("scanner")?.classList.contains("active")) return;
-    if(typeof scanner!=="undefined" && scanner) return;
-    if(typeof ensureScanModeUI==="function") ensureScanModeUI();
-    const reader=document.getElementById("reader");
-    if(!reader || typeof Html5Qrcode==="undefined") return;
-    scanner=new Html5Qrcode("reader");
-    await scanner.start({facingMode:"environment"},{fps:12,qrbox:{width:250,height:250}},onScan);
-    const msg=document.getElementById("scanMsg");
-    if(msg) msg.textContent=`Kamera aktif — mode ${scanMode.toUpperCase()}. Data tersimpan otomatis.`;
-  }catch(e){
-    console.error("Scanner auto V3.19:",e);
-    try{if(scanner){await scanner.stop();}}catch{}
-    try{if(scanner){scanner.clear();}}catch{}
-    scanner=null;
-    const msg=document.getElementById("scanMsg");
-    if(msg) msg.textContent="Kamera belum aktif. Izinkan akses kamera lalu buka Scanner lagi.";
-  }
-}
-async function stopScannerAutoV319(){
-  try{
-    if(typeof scanner!=="undefined" && scanner){
-      try{await scanner.stop();}catch{}
-      try{scanner.clear();}catch{}
-      scanner=null;
-    }
-  }catch{}
-}
-(function bootScannerAutoV319(){
-  const boot=()=>{
-    ["startScanBtn","stopScanBtn","saveScanBtn"].forEach(id=>{
-      const e=document.getElementById(id); if(e)e.style.display="none";
-    });
-    if(document.getElementById("scanner")?.classList.contains("active")) setTimeout(startScannerAutoV319,400);
-  };
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot,{once:true});
-  else boot();
-})();
-
-
-/* V3.20 FINAL — DASHBOARD RAPI + SCANNER OTOMATIS TETAP AKTIF */
-(function(){
-  function scannerIsActive(){
-    const panel=document.getElementById('scanner');
-    return !!(panel && panel.classList.contains('active'));
-  }
-  function hideScanButtons(){
-    ['startScanBtn','stopScanBtn','saveScanBtn'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el) el.style.display='none';
-    });
-  }
-  async function ensureAutoScanner(){
-    hideScanButtons();
-    if(!scannerIsActive()) return;
-    if(typeof scanner!=='undefined' && scanner) return;
-    if(typeof startScannerAutoV319==='function'){
-      await startScannerAutoV319();
-    }
-  }
-  async function stopWhenLeaving(){
-    if(scannerIsActive()) return;
-    if(typeof stopScannerAutoV319==='function') await stopScannerAutoV319();
-  }
-  window.ensureAutoScannerV320=ensureAutoScanner;
-
-  function boot(){
-    hideScanButtons();
-    ensureAutoScanner();
-    const panel=document.getElementById('scanner');
-    if(panel){
-      const obs=new MutationObserver(()=>{
-        hideScanButtons();
-        if(scannerIsActive()) setTimeout(ensureAutoScanner,80);
-        else stopWhenLeaving();
-      });
-      obs.observe(panel,{attributes:true,attributeFilter:['class']});
-    }
-    document.addEventListener('click',e=>{
-      const target=e.target.closest?.('[data-tab="scanner"],[data-go="scanner"]');
-      if(target) setTimeout(ensureAutoScanner,120);
-    },true);
-    setInterval(()=>{
-      hideScanButtons();
-      if(scannerIsActive()) ensureAutoScanner();
-    },1200);
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
-  else boot();
-
-  const st=document.createElement('style');
-  st.id='v320FinalMobileStyle';
-  st.textContent=`
-    @media(max-width:800px){
-      #dashboardExtraStats,#dashboardTrendBox{width:100%!important;max-width:100%!important;box-sizing:border-box!important;overflow:hidden!important}
-      .dash-extra-head{align-items:flex-start!important}
-      .dash-extra-head>div:first-child{min-width:0!important;flex:1!important}
-      .dash-percent{flex:0 0 auto!important}
-      .dash-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;width:100%!important}
-      .dash-stat{min-width:0!important;width:100%!important}
-      .dash-class-table{width:100%!important;overflow:hidden!important}
-      .dash-class-table table{width:100%!important;min-width:0!important;table-layout:fixed!important}
-      .dash-class-table th,.dash-class-table td{white-space:normal!important;word-break:break-word!important}
-      #dashboardTrendBox .dash-trend-chart{width:100%!important;min-width:0!important;overflow:hidden!important}
-      #startScanBtn,#stopScanBtn,#saveScanBtn{display:none!important}
-    }
-  `;
-  document.head.appendChild(st);
-})();
-
-
-/* V3.24 - HILANGKAN PILIHAN MODE; SCANNER OTOMATIS */
-(function(){
- function hideManualScanControls(){
-  [".scan-modes","#scanModeWrap","#scanMode","#scanModeMasuk","#scanModePulang","#scanModeGuruMasuk","#scanModeGuruPulang","#scanStatus","#startScanBtn","#stopScanBtn","#saveScanBtn"].forEach(sel=>document.querySelectorAll(sel).forEach(el=>el.style.display="none"));
-  const msg=document.getElementById("scanMsg"); if(msg&&document.getElementById("scanner")?.classList.contains("active")) msg.textContent="Arahkan kamera ke kartu siswa/guru. MASUK dan PULANG otomatis.";
- }
- function run(){hideManualScanControls();setTimeout(hideManualScanControls,300);setTimeout(hideManualScanControls,800);setTimeout(hideManualScanControls,1500);}
- if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",run,{once:true}); else run();
- const oldShowTab=window.showTab; if(typeof oldShowTab==="function") window.showTab=function(id){oldShowTab(id);if(id==="scanner")run();};
-})();
-
-/* =========================================================
-   ABSENSI MANUAL — IZIN / SAKIT / ALPA
-   Tidak mengubah role, Firebase Rules, atau scanner otomatis.
-   ========================================================= */
-(function initManualAttendanceStatus(){
-  if(window.__manualAttendanceStatusReady) return;
-  window.__manualAttendanceStatusReady = true;
-
-  function injectStyle(){
-    if(document.getElementById('manualStatusStyle')) return;
-    const st=document.createElement('style');
-    st.id='manualStatusStyle';
-    st.textContent=`
-      #manualAttendanceBox{margin:18px 0;padding:16px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;box-shadow:0 5px 18px rgba(0,0,0,.04)}
-      #manualAttendanceBox h3{margin:0 0 4px;font-size:17px}
-      #manualAttendanceBox .manual-sub{margin:0 0 14px;color:#6b7280;font-size:12px}
-      #manualAttendanceBox .manual-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-      #manualAttendanceBox label{font-size:12px;font-weight:600;color:#4b5563}
-      #manualAttendanceBox select{width:100%;margin-top:5px;padding:10px;border:1px solid #d1d5db;border-radius:10px;background:#fff;box-sizing:border-box}
-      #manualAttendanceBox button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
-      #manualStatusMsg{margin-top:10px;font-size:12px;color:#6b7280;min-height:18px}
-      @media(max-width:600px){#manualAttendanceBox .manual-grid{grid-template-columns:1fr}}
-    `;
-    document.head.appendChild(st);
-  }
-
-  function getAttendancePanel(){
-    return document.getElementById('attendance') || document.querySelector('.panel.active');
-  }
-
-  function renderStudentOptions(){
-    const sel=document.getElementById('manualStudent');
-    if(!sel) return;
-    const current=sel.value;
-    const list=Object.values(students||{}).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'id'));
-    sel.innerHTML='<option value="">Pilih siswa...</option>'+list.map(s=>
-      `<option value="${esc(s.id)}">${esc(s.name)} — ${esc(s.className||'-')} — ${esc(s.nis||'-')}</option>`
-    ).join('');
-    if(list.some(s=>String(s.id)===String(current))) sel.value=current;
-  }
-
-  function ensureUI(){
-    injectStyle();
-    const panel=getAttendancePanel();
-    if(!panel || document.getElementById('manualAttendanceBox')) return;
-    const box=document.createElement('div');
-    box.id='manualAttendanceBox';
-    box.innerHTML=`
-      <h3>Absensi Manual</h3>
-      <p class="manual-sub">Untuk siswa yang Izin, Sakit, atau Alpa.</p>
-      <div class="manual-grid">
-        <label>Siswa
-          <select id="manualStudent"><option value="">Pilih siswa...</option></select>
-        </label>
-        <label>Status
-          <select id="manualStatus">
-            <option value="Izin">Izin</option>
-            <option value="Sakit">Sakit</option>
-            <option value="Alpa">Alpa</option>
-          </select>
-        </label>
-      </div>
-      <button type="button" id="manualSaveBtn" class="primary">Simpan Absensi</button>
-      <div id="manualStatusMsg"></div>
-    `;
-    const table=document.getElementById('attendanceTable');
-    const wrap=table?.parentElement;
-    if(wrap?.parentElement) wrap.parentElement.insertBefore(box,wrap);
-    else panel.appendChild(box);
-
-    renderStudentOptions();
-    document.getElementById('manualSaveBtn').onclick=saveManual;
-  }
-
-  async function saveManual(){
-    const sid=document.getElementById('manualStudent')?.value;
-    const status=document.getElementById('manualStatus')?.value;
-    const msg=document.getElementById('manualStatusMsg');
-    if(!sid) return toast('Pilih siswa terlebih dahulu.');
-    const s=students?.[sid];
-    if(!s) return toast('Data siswa tidak ditemukan.');
-    const day=today();
-    const id=s.id;
-    const entry=typeof getAttendanceEntry==='function' ? getAttendanceEntry(day,id) : attendance?.[day]?.[id];
-    if(entry) return toast('Siswa ini sudah memiliki absensi hari ini.');
-
-    const data={
-      studentId:s.id,name:s.name,nis:s.nis||'',className:s.className||'',
-      status,time:nowTime(),date:day,timestamp:Date.now(),
-      by:auth.currentUser?.email||'petugas'
-    };
-    const path=`attendance/${day}/${id}`;
-    try{
-      if(typeof updateLocalAttendance==='function') updateLocalAttendance(path,{masuk:data});
-      if(typeof queueOrWrite==='function') await queueOrWrite(path,{masuk:data});
-      else await db.ref(path).set({masuk:data});
-      msg.textContent=`${s.name} — ${status} tersimpan.`;
-      toast(`Absensi ${status} ${s.name} tersimpan.`);
-      document.getElementById('manualStudent').value='';
-      if(typeof renderAttendance==='function') renderAttendance();
-      if(typeof renderDashboard==='function') renderDashboard();
-      if(typeof logActivity==='function') await logActivity('ABSENSI_MANUAL',`${s.name} • ${s.className||'-'} • ${status}`,s.id);
-    }catch(e){
-      console.error(e);
-      msg.textContent='Gagal menyimpan absensi.';
-      toast('Gagal menyimpan. Cek koneksi atau Rules Firebase.');
-    }
-  }
-
-  function boot(){
-    ensureUI();
-    renderStudentOptions();
-  }
-
-  document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,500),{once:true});
-  const oldShowTab=window.showTab;
-  if(typeof oldShowTab==='function'){
-    window.showTab=function(id){
-      oldShowTab(id);
-      if(id==='attendance') setTimeout(boot,100);
-    };
-  }
+/* STABLE REPAIR — AUTO SCAN ONLY */
+(function STABLE_REPAIR(){
+ if(window.__STABLE_REPAIR__)return;window.__STABLE_REPAIR__=true;
+ const style=document.createElement("style");style.id="stableRepairScanStyle";style.textContent=`
+ #scanner .scan-modes,#scanner .scan-actions,#scanner .scan-mode,#scanner .scan-mode-btn,#scanner #startScanBtn,#scanner #stopScanBtn,#scanner #saveScanBtn,#scanner #scanStatus,#scanner #scanMode,#scanner #scanModeSelect{display:none!important}
+ `;document.head.appendChild(style);
+ function hide(){["startScanBtn","stopScanBtn","saveScanBtn","scanStatus","scanMode","scanModeSelect"].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display="none"});document.querySelectorAll("#scanner .scan-modes,#scanner .scan-actions,#scanner .scan-mode,#scanner .scan-mode-btn").forEach(e=>e.style.display="none");}
+ window.startStableScanner=async function(){
+   hide();if(!$("scanner")?.classList.contains("active"))return;if(scanner)return;
+   const reader=$("reader");if(!reader||typeof Html5Qrcode==="undefined")return;
+   try{unlockScanAudio();scanner=new Html5Qrcode("reader");await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:250}},onScan);$("scanMsg").textContent="Kamera aktif — scan otomatis.";}
+   catch(e){console.error("STABLE SCANNER",e);try{if(scanner)await scanner.stop()}catch{}try{if(scanner)scanner.clear()}catch{}scanner=null;$("scanMsg").textContent="Kamera gagal dibuka. Izinkan kamera lalu buka Scan lagi.";}
+ };
+ window.stopStableScanner=async function(){try{if(scanner){try{await scanner.stop()}catch{}try{scanner.clear()}catch{}scanner=null;}}catch{}};
+ // Clean old persisted attendance queue entries safely.
+ try{offlineQueue=(offlineQueue||[]).map(x=>String(x.path||"").startsWith("attendance/")?({...x,mode:"update"}):x);saveOfflineQueue();}catch{}
+ const boot=()=>{hide();if($("scanner")?.classList.contains("active"))setTimeout(startStableScanner,500)};
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot,{once:true});else boot();
 })();
